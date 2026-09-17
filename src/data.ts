@@ -1,29 +1,13 @@
+import type { DestinationTag } from './classify'
+
 export type Role = 'parent' | 'teacher'
+export type TabId = 'home' | 'calendar' | 'board' | 'gallery'
 
 export interface ClassInfo {
   className: string
   schoolName: string
   teacherName: string
   teacherInitials: string
-  studentsCount: number
-  presentToday: number
-}
-
-export interface Announcement {
-  id: string
-  title: string
-  body: string
-  time: string
-  pinned?: boolean
-  tag: 'הודעה' | 'תזכורת' | 'דחוף'
-}
-
-export interface Photo {
-  id: string
-  caption: string
-  date: string
-  gradient: string
-  emoji: string
 }
 
 export interface ChatMessage {
@@ -34,18 +18,39 @@ export interface ChatMessage {
   time: string
   likes: number
   readBy: number
+  photoUrl?: string
+  tags: DestinationTag[]
 }
 
-export interface SchoolEvent {
+export interface EventCard {
   id: string
   title: string
   date: string
-  time: string
+  time?: string
   location: string
   icon: string
   rsvpYes: number
   rsvpNo: number
   myRsvp: 'yes' | 'no' | null
+  sourceMessageId?: string
+}
+
+export interface ReminderCard {
+  id: string
+  text: string
+  icon: string
+  dateLabel: string
+  sourceMessageId?: string
+}
+
+export interface Photo {
+  id: string
+  caption: string
+  date: string
+  gradient: string
+  emoji: string
+  imageUrl?: string
+  sourceMessageId?: string
 }
 
 export const classInfo: ClassInfo = {
@@ -53,52 +58,17 @@ export const classInfo: ClassInfo = {
   schoolName: 'בית ספר יסודי "הדקל"',
   teacherName: 'תהילה שם טוב',
   teacherInitials: 'תש',
-  studentsCount: 27,
-  presentToday: 25,
 }
 
-export const initialAnnouncements: Announcement[] = [
-  {
-    id: 'a1',
-    title: 'מחר יום הבגדים המצחיקים 🤪',
-    body: 'תזכורת חמודה - מחר מגיעים עם בגדים הפוכים או מצחיקים לרגל סיום היחידה בשיעור חברה. בואו נצחק ביחד!',
-    time: 'לפני 20 דקות',
-    pinned: true,
-    tag: 'תזכורת',
-  },
-  {
-    id: 'a2',
-    title: 'טופס הסכמה לטיול השנתי',
-    body: 'אנא מלאו את הטופס באתר עד יום חמישי. הטיול יתקיים בעוד שבועיים לגן החיות בתל אביב.',
-    time: 'לפני 3 שעות',
-    tag: 'דחוף',
-  },
-  {
-    id: 'a3',
-    title: 'שינוי בשיעורי הבית להיום',
-    body: 'במקום דף עבודה במתמטיקה - קריאה חופשית של 20 דקות מהספר האישי. תהנו!',
-    time: 'היום, 13:10',
-    tag: 'הודעה',
-  },
-  {
-    id: 'a4',
-    title: 'תודה לכל ההורים שהתנדבו',
-    body: 'יום הספורט עבר נהדר בזכות ההורים שעזרו בתחנות. הילדים נהנו מאוד ❤️',
-    time: 'אתמול',
-    tag: 'הודעה',
-  },
+export const initialStudents: string[] = [
+  'יונתן כהן', 'נועה לוי', 'איתי מזרחי', 'שירה אברהם', 'עומר פרץ', 'מאיה בן דוד',
+  'דניאל אוחיון', 'תמר גבאי', 'רועי אזולאי', 'הילה דהן', 'עידו נחום', 'אביגיל מלכה',
+  'יהלי שושן', 'ליה חדד', 'נדב יוסף', 'רוני עמר', 'אור כץ', 'שקד ביטון',
+  'עדן וקנין', 'גל אשכנזי', 'טליה סבג', 'ארז פרידמן', 'נויה חן', 'אלון ששון',
+  'מיכל בוזגלו', 'יובל שרעבי', 'זיו קורן',
 ]
 
-export const initialPhotos: Photo[] = [
-  { id: 'p1', caption: 'יום יצירה בכיתה', date: '12.9', gradient: 'from-sun-300 to-sun-500', emoji: '🎨' },
-  { id: 'p2', caption: 'ניסוי מדעים - הר געש', date: '10.9', gradient: 'from-leaf-400 to-brand-500', emoji: '🌋' },
-  { id: 'p3', caption: 'הפסקה פעילה בחצר', date: '8.9', gradient: 'from-brand-300 to-brand-600', emoji: '⚽' },
-  { id: 'p4', caption: 'קריאה בפינת הספרים', date: '5.9', gradient: 'from-sun-200 to-sun-400', emoji: '📚' },
-  { id: 'p5', caption: 'מסיבת יום הולדת כיתתית', date: '3.9', gradient: 'from-brand-400 to-leaf-500', emoji: '🎂' },
-  { id: 'p6', caption: 'טיול לגינה הקהילתית', date: '1.9', gradient: 'from-leaf-500 to-brand-400', emoji: '🌻' },
-]
-
-export const initialChat: ChatMessage[] = [
+export const initialMessages: ChatMessage[] = [
   {
     id: 'c1',
     from: 'teacher',
@@ -107,6 +77,7 @@ export const initialChat: ChatMessage[] = [
     time: '18:42',
     likes: 14,
     readBy: 24,
+    tags: ['event'],
   },
   {
     id: 'c2',
@@ -116,21 +87,55 @@ export const initialChat: ChatMessage[] = [
     time: '18:45',
     likes: 3,
     readBy: 0,
+    tags: ['general'],
   },
   {
     id: 'c3',
     from: 'teacher',
     authorName: 'תהילה שם טוב',
-    text: 'בשמחה! תזכורת - מחר להביא בקבוק מים ושכפ"ץ, יוצאים לחצר לשיעור ספורט 💧',
+    text: 'תזכורת - מחר להביא בקבוק מים ושכפ"ץ, יוצאים לחצר לשיעור ספורט 💧',
     time: '18:47',
     likes: 9,
     readBy: 21,
+    tags: ['reminder'],
+  },
+  {
+    id: 'c4',
+    from: 'teacher',
+    authorName: 'תהילה שם טוב',
+    text: 'טופס הסכמה לטיול השנתי - אנא מלאו באתר עד יום חמישי. הטיול ב-1.10 לגן החיות בתל אביב 🦁',
+    time: 'היום, 09:12',
+    likes: 11,
+    readBy: 22,
+    tags: ['event', 'reminder'],
   },
 ]
 
-export const initialEvents: SchoolEvent[] = [
+export const initialEvents: EventCard[] = [
   {
     id: 'e1',
+    title: 'חזרות למופע הכיתתי',
+    date: 'בקרוב',
+    location: 'בית הספר',
+    icon: '🎭',
+    rsvpYes: 0,
+    rsvpNo: 0,
+    myRsvp: null,
+    sourceMessageId: 'c1',
+  },
+  {
+    id: 'e2',
+    title: 'טיול שנתי - גן החיות בתל אביב',
+    date: '1.10',
+    location: 'בית הספר',
+    icon: '🚌',
+    rsvpYes: 22,
+    rsvpNo: 1,
+    myRsvp: 'yes',
+    sourceMessageId: 'c4',
+  },
+  {
+    id: 'e3',
     title: 'אסיפת הורים',
     date: '24.9',
     time: '18:00',
@@ -140,27 +145,22 @@ export const initialEvents: SchoolEvent[] = [
     rsvpNo: 2,
     myRsvp: null,
   },
+]
+
+export const initialReminders: ReminderCard[] = [
   {
-    id: 'e2',
-    title: 'טיול שנתי - גן החיות',
-    date: '1.10',
-    time: '08:00',
-    location: 'יציאה מהחניה המרכזית',
-    icon: '🦁',
-    rsvpYes: 22,
-    rsvpNo: 1,
-    myRsvp: 'yes',
+    id: 'r1',
+    text: 'מחר להביא בקבוק מים ושכפ"ץ, יוצאים לחצר לשיעור ספורט 💧',
+    icon: '🎒',
+    dateLabel: 'מחר',
+    sourceMessageId: 'c3',
   },
   {
-    id: 'e3',
-    title: 'מסיבת סוכות כיתתית',
-    date: '5.10',
-    time: '10:30',
-    location: 'סוכת בית הספר',
-    icon: '🍎',
-    rsvpYes: 15,
-    rsvpNo: 0,
-    myRsvp: null,
+    id: 'r2',
+    text: 'טופס הסכמה לטיול השנתי - יש למלא באתר עד יום חמישי',
+    icon: '✍️',
+    dateLabel: 'עד יום חמישי',
+    sourceMessageId: 'c4',
   },
 ]
 
@@ -170,4 +170,11 @@ export const dutyRoster = [
   { day: 'שלישי', parent: 'משפחת מזרחי', task: 'חטיף בריא' },
   { day: 'רביעי', parent: 'משפחת אברהם', task: 'עזרה בהפסקה' },
   { day: 'חמישי', parent: 'משפחת פרץ', task: 'חטיף בריא' },
+]
+
+export const initialPhotos: Photo[] = [
+  { id: 'p1', caption: 'יום יצירה בכיתה', date: '12.9', gradient: 'from-sun-300 to-sun-500', emoji: '🎨' },
+  { id: 'p2', caption: 'ניסוי מדעים - הר געש', date: '10.9', gradient: 'from-leaf-400 to-brand-500', emoji: '🌋' },
+  { id: 'p3', caption: 'הפסקה פעילה בחצר', date: '8.9', gradient: 'from-brand-300 to-brand-600', emoji: '⚽' },
+  { id: 'p4', caption: 'קריאה בפינת הספרים', date: '5.9', gradient: 'from-sun-200 to-sun-400', emoji: '📚' },
 ]

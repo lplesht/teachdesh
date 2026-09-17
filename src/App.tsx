@@ -1,64 +1,89 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Header from './components/Header'
-import ClassHero from './components/ClassHero'
-import AnnouncementsFeed from './components/AnnouncementsFeed'
-import ClassGallery from './components/ClassGallery'
-import TeacherChat from './components/TeacherChat'
-import EventsPanel from './components/EventsPanel'
-import DutyRoster from './components/DutyRoster'
+import BottomNav from './components/BottomNav'
+import ChatScreen from './components/ChatScreen'
+import CalendarTab from './components/CalendarTab'
+import BoardTab from './components/BoardTab'
+import GalleryTab from './components/GalleryTab'
+import RosterModal from './components/RosterModal'
+import { classifyMessage, destinationLabel } from './classify'
 import {
-  initialAnnouncements,
-  initialChat,
   initialEvents,
+  initialMessages,
   initialPhotos,
-  type Announcement,
+  initialReminders,
+  initialStudents,
   type ChatMessage,
+  type EventCard,
   type Photo,
+  type ReminderCard,
   type Role,
-  type SchoolEvent,
+  type TabId,
 } from './data'
-
-const photoDecks = [
-  { gradient: 'from-brand-400 to-leaf-500', emoji: '🖼️' },
-  { gradient: 'from-sun-300 to-brand-400', emoji: '🎭' },
-  { gradient: 'from-leaf-400 to-sun-400', emoji: '🧪' },
-]
 
 export default function App() {
   const [role, setRole] = useState<Role>('parent')
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements)
+  const [tab, setTab] = useState<TabId>('home')
+  const [students, setStudents] = useState<string[]>(initialStudents)
+  const [rosterOpen, setRosterOpen] = useState(false)
+
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
+  const [events, setEvents] = useState<EventCard[]>(initialEvents)
+  const [reminders, setReminders] = useState<ReminderCard[]>(initialReminders)
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
-  const [messages, setMessages] = useState<ChatMessage[]>(initialChat)
-  const [events, setEvents] = useState<SchoolEvent[]>(initialEvents)
 
-  const addAnnouncement = (title: string, body: string) => {
-    setAnnouncements((prev) => [
-      { id: `a${Date.now()}`, title, body, time: 'עכשיו', tag: 'הודעה', pinned: false },
-      ...prev,
-    ])
+  const [routingToast, setRoutingToast] = useState<string | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = (text: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setRoutingToast(text)
+    toastTimer.current = setTimeout(() => setRoutingToast(null), 3800)
   }
 
-  const addPhoto = () => {
-    const deck = photoDecks[photos.length % photoDecks.length]
-    setPhotos((prev) => [
-      { id: `p${Date.now()}`, caption: 'תמונה חדשה מהכיתה', date: 'היום', gradient: deck.gradient, emoji: deck.emoji },
-      ...prev,
-    ])
-  }
+  const sendMessage = (text: string, photoDataUrl?: string) => {
+    const id = `c${Date.now()}`
+    const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    const { tags, eventMeta, reminderMeta } = classifyMessage(text, !!photoDataUrl)
 
-  const sendMessage = (text: string) => {
     setMessages((prev) => [
       ...prev,
-      {
-        id: `c${Date.now()}`,
-        from: 'teacher',
-        authorName: 'תהילה שם טוב',
-        text,
-        time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
-        likes: 0,
-        readBy: 0,
-      },
+      { id, from: 'teacher', authorName: 'תהילה שם טוב', text, time, likes: 0, readBy: 0, photoUrl: photoDataUrl, tags },
     ])
+
+    if (eventMeta) {
+      setEvents((prev) => [
+        {
+          id: `e${Date.now()}`,
+          title: eventMeta.title,
+          date: eventMeta.date,
+          time: eventMeta.time,
+          location: eventMeta.location,
+          icon: eventMeta.icon,
+          rsvpYes: 0,
+          rsvpNo: 0,
+          myRsvp: null,
+          sourceMessageId: id,
+        },
+        ...prev,
+      ])
+    }
+
+    if (reminderMeta) {
+      setReminders((prev) => [
+        { id: `r${Date.now()}`, text: reminderMeta.text, icon: reminderMeta.icon, dateLabel: reminderMeta.dateLabel, sourceMessageId: id },
+        ...prev,
+      ])
+    }
+
+    if (photoDataUrl) {
+      setPhotos((prev) => [
+        { id: `p${Date.now()}`, caption: text || 'תמונה מהכיתה', date: 'היום', gradient: '', emoji: '', imageUrl: photoDataUrl, sourceMessageId: id },
+        ...prev,
+      ])
+    }
+
+    showToast(`🤖 ההודעה סווגה אוטומטית ונוספה ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
   }
 
   const likeMessage = (id: string) => {
@@ -68,8 +93,7 @@ export default function App() {
   const rsvpEvent = (id: string, answer: 'yes' | 'no') => {
     setEvents((prev) =>
       prev.map((ev) => {
-        if (ev.id !== id) return ev
-        if (ev.myRsvp === answer) return ev
+        if (ev.id !== id || ev.myRsvp === answer) return ev
         let { rsvpYes, rsvpNo } = ev
         if (ev.myRsvp === 'yes') rsvpYes -= 1
         if (ev.myRsvp === 'no') rsvpNo -= 1
@@ -80,43 +104,24 @@ export default function App() {
     )
   }
 
-  const createEvent = (title: string, date: string, time: string, location: string) => {
-    setEvents((prev) => [
-      { id: `e${Date.now()}`, title, date, time, location, icon: '🎉', rsvpYes: 0, rsvpNo: 0, myRsvp: null },
-      ...prev,
-    ])
-  }
-
   return (
-    <div className="min-h-screen pb-16">
-      <Header role={role} onRoleChange={setRole} unreadCount={announcements.length} />
+    <div className="min-h-dvh bg-slate-200 sm:flex sm:items-center sm:justify-center sm:p-8">
+      <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f6fb] sm:h-[860px] sm:rounded-[2.5rem] sm:shadow-2xl sm:ring-8 sm:ring-slate-900/90">
+        <Header role={role} onRoleChange={setRole} studentsCount={students.length} onOpenRoster={() => setRosterOpen(true)} />
 
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6">
-        <ClassHero />
+        <main className="min-h-0 flex-1">
+          {tab === 'home' && (
+            <ChatScreen messages={messages} role={role} routingToast={routingToast} onSend={sendMessage} onLike={likeMessage} />
+          )}
+          {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
+          {tab === 'board' && <BoardTab reminders={reminders} />}
+          {tab === 'gallery' && <GalleryTab photos={photos} />}
+        </main>
 
-        {role === 'teacher' && (
-          <div className="flex items-center gap-2 rounded-2xl bg-sun-50 px-4 py-3 text-xs font-semibold text-sun-600 ring-1 ring-sun-200">
-            🍎 את צופה כעת במסך בתצוגת מורה — כל מה שתפרסמי כאן יישלח מיידית לכל הורי הכיתה.
-          </div>
-        )}
+        <BottomNav active={tab} onChange={setTab} badges={{ calendar: events.length || undefined }} />
+      </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="flex flex-col gap-5 lg:col-span-2">
-            <AnnouncementsFeed announcements={announcements} role={role} onAdd={addAnnouncement} />
-            <TeacherChat messages={messages} role={role} onSend={sendMessage} onLike={likeMessage} />
-          </div>
-
-          <div className="flex flex-col gap-5">
-            <ClassGallery photos={photos} role={role} onAdd={addPhoto} />
-            <EventsPanel events={events} role={role} onRsvp={rsvpEvent} onCreate={createEvent} />
-            <DutyRoster />
-          </div>
-        </div>
-      </main>
-
-      <footer className="mx-auto max-w-6xl px-6 pb-6 text-center text-xs text-slate-400">
-        כיתת ענן · דמו לאפליקציית קשר הורה-מורה · לא לשימוש בפועל
-      </footer>
+      {rosterOpen && <RosterModal students={students} onClose={() => setRosterOpen(false)} onUpdate={setStudents} />}
     </div>
   )
 }
