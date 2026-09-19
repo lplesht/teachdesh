@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /classes/{classId}/photos/{photoId} {
+      allow read: if request.auth != null
+        && classId in firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.classIds;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'teacher'
+        && classId in firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.classIds
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
