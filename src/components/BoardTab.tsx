@@ -1,34 +1,39 @@
 import { dutyRoster } from '../data'
-import type { ReminderCard } from '../data'
+import type { AssignmentCard } from '../data'
 
 interface Props {
-  reminders: ReminderCard[]
+  assignments: AssignmentCard[]
 }
 
 const today = 'שלישי'
 
-export default function BoardTab({ reminders }: Props) {
+export default function BoardTab({ assignments }: Props) {
   return (
     <div className="h-full overflow-y-auto px-4 py-4">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-extrabold text-slate-900">
-        <span>📝</span> שיעורי בית ודברים להביא
+        <span>📝</span> מטלות כיתה ובית
       </h2>
-      <p className="mb-4 text-xs text-slate-400">מתעדכן אוטומטית מהודעות המורה בצ'אט</p>
+      <p className="mb-4 text-xs text-slate-400">מתעדכן אוטומטית מהודעות המורה בצ'אט - רק מה שקשור ללימודים ✏️</p>
 
-      {reminders.length === 0 && (
+      {assignments.length === 0 && (
         <p className="mb-6 rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400">אין עדיין מטלות פתוחות 🎉</p>
       )}
 
       <ul className="mb-6 flex flex-col gap-2.5">
-        {reminders.map((r) => (
-          <li key={r.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
+        {assignments.map((a) => (
+          <li key={a.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-lg shadow-sm">
-              {r.icon}
+              {a.icon}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm leading-relaxed text-slate-800">{r.text}</p>
+              {a.subject && (
+                <span className="mb-1 inline-block rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                  {a.subject}
+                </span>
+              )}
+              <p className="text-sm leading-relaxed text-slate-800">{a.text}</p>
               <span className="mt-1 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[10px] font-bold text-sun-600">
-                {r.dateLabel}
+                📅 {a.dateLabel}
               </span>
             </div>
           </li>

@@ -1,4 +1,4 @@
-export type DestinationTag = 'event' | 'reminder' | 'gallery' | 'general'
+export type DestinationTag = 'event' | 'assignment' | 'announcement' | 'gallery' | 'general'
 
 export interface EventMeta {
   title: string
@@ -8,7 +8,14 @@ export interface EventMeta {
   location: string
 }
 
-export interface ReminderMeta {
+export interface AssignmentMeta {
+  subject?: string
+  text: string
+  icon: string
+  dateLabel: string
+}
+
+export interface AnnouncementMeta {
   text: string
   icon: string
   dateLabel: string
@@ -17,7 +24,8 @@ export interface ReminderMeta {
 export interface ClassificationResult {
   tags: DestinationTag[]
   eventMeta?: EventMeta
-  reminderMeta?: ReminderMeta
+  assignmentMeta?: AssignmentMeta
+  announcementMeta?: AnnouncementMeta
 }
 
 const EVENT_KEYWORDS = [
@@ -37,8 +45,27 @@ const EVENT_KEYWORDS = [
   'ספורט יום',
 ]
 
-const REMINDER_KEYWORDS = [
+// Study-related only: what was taught/learned, homework, tests - goes to לוח המטלות.
+const ASSIGNMENT_KEYWORDS = [
   'שיעורי בית',
+  'עברנו על',
+  'למדנו',
+  'למדתם',
+  'סיכמנו',
+  'תרגיל',
+  'תרגילים',
+  'דף עבודה',
+  'עמוד',
+  'עמודים',
+  'להכין',
+  'לתרגל',
+  'לחזור על',
+  'מבחן',
+  'בוחן',
+]
+
+// General dated notices that are not study content and not a calendar event.
+const ANNOUNCEMENT_KEYWORDS = [
   'להביא',
   'לא לשכוח',
   'תלבושת',
@@ -46,18 +73,25 @@ const REMINDER_KEYWORDS = [
   'שכפ"ץ',
   'שכפץ',
   'מחברת',
-  'דף עבודה',
-  'עבודה',
-  'מבחן',
-  'בוחן',
-  'לחתום',
-  'טופס',
   'בקבוק מים',
+  'טופס',
+  'לחתום',
+  'תזכורת',
+]
+
+const SUBJECT_PATTERNS: { names: string[]; label: string; icon: string }[] = [
+  { names: ['תנ"ך', 'תנ״ך', 'תנך'], label: 'תנ"ך', icon: '📖' },
+  { names: ['חשבון', 'מתמטיקה'], label: 'חשבון', icon: '➗' },
+  { names: ['אנגלית'], label: 'אנגלית', icon: '🔤' },
+  { names: ['עברית'], label: 'עברית', icon: '✍️' },
+  { names: ['מדעים', 'מדע'], label: 'מדעים', icon: '🔬' },
+  { names: ['היסטוריה'], label: 'היסטוריה', icon: '🏛️' },
+  { names: ['גיאוגרפיה'], label: 'גיאוגרפיה', icon: '🗺️' },
 ]
 
 const DATE_RE = /(\d{1,2})[./](\d{1,2})/
 const TIME_RE = /(\d{1,2}):(\d{2})/
-const RELATIVE_DAYS = ['מחרתיים', 'מחר', 'היום', 'יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת']
+const RELATIVE_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת']
 
 function eventIcon(text: string): string {
   if (text.includes('טיול')) return '🚌'
@@ -70,18 +104,42 @@ function eventIcon(text: string): string {
   return '📌'
 }
 
-function reminderIcon(text: string): string {
-  if (text.includes('תלבושת')) return '👕'
-  if (text.includes('שכפ') || text.includes('ציוד') || text.includes('בקבוק מים')) return '🎒'
-  if (text.includes('מחברת') || text.includes('דף עבודה') || text.includes('שיעורי בית')) return '📓'
-  if (text.includes('מבחן') || text.includes('בוחן')) return '✏️'
-  if (text.includes('טופס') || text.includes('לחתום')) return '✍️'
-  return '📝'
+function extractSubject(text: string): { label: string; icon: string } | undefined {
+  return SUBJECT_PATTERNS.find((s) => s.names.some((n) => text.includes(n)))
 }
 
-function extractDateLabel(text: string): string {
+function assignmentIcon(text: string): string {
+  const subject = extractSubject(text)
+  if (subject) return subject.icon
+  if (text.includes('מבחן') || text.includes('בוחן')) return '✏️'
+  if (text.includes('תרגיל')) return '🧮'
+  if (text.includes('דף עבודה')) return '📄'
+  return '📓'
+}
+
+function announcementIcon(text: string): string {
+  if (text.includes('תלבושת')) return '👕'
+  if (text.includes('שכפ') || text.includes('ציוד') || text.includes('בקבוק מים')) return '🎒'
+  if (text.includes('טופס') || text.includes('לחתום')) return '✍️'
+  if (text.includes('מחברת')) return '📓'
+  return '📌'
+}
+
+function shiftedDate(now: Date, days: number): string {
+  const d = new Date(now)
+  d.setDate(d.getDate() + days)
+  return `${d.getDate()}.${d.getMonth() + 1}`
+}
+
+// Turns relative day words into a real calendar date (based on when the message was sent),
+// since assignments/announcements need an actual date, not just "today"/"tomorrow".
+function resolveDateLabel(text: string, now: Date): string {
   const dateMatch = text.match(DATE_RE)
   if (dateMatch) return `${dateMatch[1]}.${dateMatch[2]}`
+  if (text.includes('מחרתיים')) return shiftedDate(now, 2)
+  if (text.includes('מחר')) return shiftedDate(now, 1)
+  if (text.includes('אתמול')) return shiftedDate(now, -1)
+  if (text.includes('היום')) return shiftedDate(now, 0)
   const day = RELATIVE_DAYS.find((d) => text.includes(d))
   if (day) return day
   return 'בקרוב'
@@ -93,45 +151,59 @@ function truncate(text: string, max: number): string {
   return `${firstLine.slice(0, max).trim()}…`
 }
 
-export function classifyMessage(text: string, hasPhoto: boolean): ClassificationResult {
+export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = new Date()): ClassificationResult {
   const tags: DestinationTag[] = []
   if (hasPhoto) tags.push('gallery')
 
   const isEvent = EVENT_KEYWORDS.some((k) => text.includes(k)) || DATE_RE.test(text)
-  const isReminder = REMINDER_KEYWORDS.some((k) => text.includes(k))
+  const isAssignment = ASSIGNMENT_KEYWORDS.some((k) => text.includes(k))
+  const isAnnouncement = ANNOUNCEMENT_KEYWORDS.some((k) => text.includes(k))
 
   let eventMeta: EventMeta | undefined
-  let reminderMeta: ReminderMeta | undefined
+  let assignmentMeta: AssignmentMeta | undefined
+  let announcementMeta: AnnouncementMeta | undefined
 
   if (isEvent) {
     tags.push('event')
     const timeMatch = text.match(TIME_RE)
     eventMeta = {
       title: truncate(text, 42),
-      date: extractDateLabel(text),
+      date: resolveDateLabel(text, sentAt),
       time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
       icon: eventIcon(text),
       location: 'בית הספר',
     }
   }
 
-  if (isReminder) {
-    tags.push('reminder')
-    reminderMeta = {
-      text: truncate(text, 60),
-      icon: reminderIcon(text),
-      dateLabel: extractDateLabel(text),
+  if (isAssignment) {
+    tags.push('assignment')
+    const subject = extractSubject(text)
+    assignmentMeta = {
+      subject: subject?.label,
+      text: truncate(text, 70),
+      icon: assignmentIcon(text),
+      dateLabel: resolveDateLabel(text, sentAt),
     }
   }
 
-  if (!isEvent && !isReminder) tags.push('general')
+  if (isAnnouncement) {
+    tags.push('announcement')
+    announcementMeta = {
+      text: truncate(text, 60),
+      icon: announcementIcon(text),
+      dateLabel: resolveDateLabel(text, sentAt),
+    }
+  }
 
-  return { tags, eventMeta, reminderMeta }
+  if (!isEvent && !isAssignment && !isAnnouncement) tags.push('general')
+
+  return { tags, eventMeta, assignmentMeta, announcementMeta }
 }
 
 export const destinationLabel: Record<DestinationTag, string> = {
   event: '📅 יומן האירועים',
-  reminder: '📝 לוח המטלות',
+  assignment: '📝 מטלות כיתה ובית',
+  announcement: '📌 הודעות',
   gallery: '📷 הגלריה',
   general: '🏠 עדכונים אחרונים',
 }

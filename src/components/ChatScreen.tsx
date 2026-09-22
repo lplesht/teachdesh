@@ -12,7 +12,8 @@ interface Props {
 
 const tagStyles: Record<DestinationTag, string> = {
   event: 'bg-brand-50 text-brand-700',
-  reminder: 'bg-sun-100 text-sun-600',
+  assignment: 'bg-sun-100 text-sun-600',
+  announcement: 'bg-rose-50 text-rose-600',
   gallery: 'bg-leaf-100 text-leaf-600',
   general: 'bg-slate-100 text-slate-500',
 }
@@ -137,7 +138,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               </button>
             </div>
             <p className="mt-1.5 px-1 text-[10px] text-slate-400">
-              ✨ המערכת מזהה אוטומטית הודעות על אירועים, שיעורי בית ותמונות ומוסיפה אותן ללוחות המתאימים
+              ✨ המערכת מזהה אוטומטית אירועים, מטלות לימודיות, הודעות ותמונות - ומוסיפה אותן ללוחות המתאימים לפי תאריך
             </p>
           </>
         ) : (

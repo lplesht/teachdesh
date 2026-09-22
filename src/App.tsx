@@ -4,19 +4,22 @@ import BottomNav from './components/BottomNav'
 import ChatScreen from './components/ChatScreen'
 import CalendarTab from './components/CalendarTab'
 import BoardTab from './components/BoardTab'
+import AnnouncementsTab from './components/AnnouncementsTab'
 import GalleryTab from './components/GalleryTab'
 import RosterModal from './components/RosterModal'
 import { classifyMessage, destinationLabel } from './classify'
 import {
+  initialAnnouncements,
+  initialAssignments,
   initialEvents,
   initialMessages,
   initialPhotos,
-  initialReminders,
   initialStudents,
+  type AnnouncementCard,
+  type AssignmentCard,
   type ChatMessage,
   type EventCard,
   type Photo,
-  type ReminderCard,
   type Role,
   type TabId,
 } from './data'
@@ -29,7 +32,8 @@ export default function App() {
 
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [events, setEvents] = useState<EventCard[]>(initialEvents)
-  const [reminders, setReminders] = useState<ReminderCard[]>(initialReminders)
+  const [assignments, setAssignments] = useState<AssignmentCard[]>(initialAssignments)
+  const [announcements, setAnnouncements] = useState<AnnouncementCard[]>(initialAnnouncements)
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
 
   const [routingToast, setRoutingToast] = useState<string | null>(null)
@@ -44,7 +48,7 @@ export default function App() {
   const sendMessage = (text: string, photoDataUrl?: string) => {
     const id = `c${Date.now()}`
     const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-    const { tags, eventMeta, reminderMeta } = classifyMessage(text, !!photoDataUrl)
+    const { tags, eventMeta, assignmentMeta, announcementMeta } = classifyMessage(text, !!photoDataUrl)
 
     setMessages((prev) => [
       ...prev,
@@ -69,9 +73,23 @@ export default function App() {
       ])
     }
 
-    if (reminderMeta) {
-      setReminders((prev) => [
-        { id: `r${Date.now()}`, text: reminderMeta.text, icon: reminderMeta.icon, dateLabel: reminderMeta.dateLabel, sourceMessageId: id },
+    if (assignmentMeta) {
+      setAssignments((prev) => [
+        {
+          id: `a${Date.now()}`,
+          subject: assignmentMeta.subject,
+          text: assignmentMeta.text,
+          icon: assignmentMeta.icon,
+          dateLabel: assignmentMeta.dateLabel,
+          sourceMessageId: id,
+        },
+        ...prev,
+      ])
+    }
+
+    if (announcementMeta) {
+      setAnnouncements((prev) => [
+        { id: `n${Date.now()}`, text: announcementMeta.text, icon: announcementMeta.icon, dateLabel: announcementMeta.dateLabel, sourceMessageId: id },
         ...prev,
       ])
     }
@@ -114,11 +132,20 @@ export default function App() {
             <ChatScreen messages={messages} role={role} routingToast={routingToast} onSend={sendMessage} onLike={likeMessage} />
           )}
           {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
-          {tab === 'board' && <BoardTab reminders={reminders} />}
+          {tab === 'board' && <BoardTab assignments={assignments} />}
+          {tab === 'announcements' && <AnnouncementsTab announcements={announcements} />}
           {tab === 'gallery' && <GalleryTab photos={photos} />}
         </main>
 
-        <BottomNav active={tab} onChange={setTab} badges={{ calendar: events.length || undefined }} />
+        <BottomNav
+          active={tab}
+          onChange={setTab}
+          badges={{
+            calendar: events.length || undefined,
+            board: assignments.length || undefined,
+            announcements: announcements.length || undefined,
+          }}
+        />
       </div>
 
       {rosterOpen && <RosterModal students={students} onClose={() => setRosterOpen(false)} onUpdate={setStudents} />}

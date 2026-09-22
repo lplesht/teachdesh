@@ -1,7 +1,7 @@
 import type { DestinationTag } from './classify'
 
 export type Role = 'parent' | 'teacher'
-export type TabId = 'home' | 'calendar' | 'board' | 'gallery'
+export type TabId = 'home' | 'calendar' | 'board' | 'announcements' | 'gallery'
 
 export interface ClassInfo {
   className: string
@@ -35,7 +35,16 @@ export interface EventCard {
   sourceMessageId?: string
 }
 
-export interface ReminderCard {
+export interface AssignmentCard {
+  id: string
+  subject?: string
+  text: string
+  icon: string
+  dateLabel: string
+  sourceMessageId?: string
+}
+
+export interface AnnouncementCard {
   id: string
   text: string
   icon: string
@@ -97,7 +106,7 @@ export const initialMessages: ChatMessage[] = [
     time: '18:47',
     likes: 9,
     readBy: 21,
-    tags: ['reminder'],
+    tags: ['announcement'],
   },
   {
     id: 'c4',
@@ -107,7 +116,17 @@ export const initialMessages: ChatMessage[] = [
     time: 'היום, 09:12',
     likes: 11,
     readBy: 22,
-    tags: ['event', 'reminder'],
+    tags: ['event', 'announcement'],
+  },
+  {
+    id: 'c5',
+    from: 'teacher',
+    authorName: 'תהילה שם טוב',
+    text: 'היום בתנ״ך למדנו על משה ואהרון עמודים 51-58',
+    time: 'היום, 10:20',
+    likes: 6,
+    readBy: 19,
+    tags: ['assignment'],
   },
 ]
 
@@ -147,16 +166,27 @@ export const initialEvents: EventCard[] = [
   },
 ]
 
-export const initialReminders: ReminderCard[] = [
+export const initialAssignments: AssignmentCard[] = [
   {
-    id: 'r1',
+    id: 'a1',
+    subject: 'תנ"ך',
+    text: 'למדנו על משה ואהרון, עמודים 51-58',
+    icon: '📖',
+    dateLabel: '22.9',
+    sourceMessageId: 'c5',
+  },
+]
+
+export const initialAnnouncements: AnnouncementCard[] = [
+  {
+    id: 'n1',
     text: 'מחר להביא בקבוק מים ושכפ"ץ, יוצאים לחצר לשיעור ספורט 💧',
     icon: '🎒',
     dateLabel: 'מחר',
     sourceMessageId: 'c3',
   },
   {
-    id: 'r2',
+    id: 'n2',
     text: 'טופס הסכמה לטיול השנתי - יש למלא באתר עד יום חמישי',
     icon: '✍️',
     dateLabel: 'עד יום חמישי',

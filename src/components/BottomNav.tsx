@@ -10,6 +10,7 @@ const tabs: Tab[] = [
   { id: 'home', label: 'בית', icon: '🏠' },
   { id: 'calendar', label: 'יומן', icon: '📅' },
   { id: 'board', label: 'מטלות', icon: '📝' },
+  { id: 'announcements', label: 'הודעות', icon: '📌' },
   { id: 'gallery', label: 'גלריה', icon: '📷' },
 ]
 
@@ -22,7 +23,7 @@ interface Props {
 export default function BottomNav({ active, onChange, badges }: Props) {
   return (
     <nav className="shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur">
-      <div className="grid grid-cols-4">
+      <div className="grid grid-cols-5">
         {tabs.map((t) => {
           const isActive = active === t.id
           const badge = badges[t.id]
