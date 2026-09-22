@@ -8,19 +8,26 @@ interface Props {
 const today = 'שלישי'
 
 export default function BoardTab({ assignments }: Props) {
+  const sorted = [...assignments].sort((a, b) => {
+    if (a.dateIso && b.dateIso) return a.dateIso.localeCompare(b.dateIso)
+    if (a.dateIso) return -1
+    if (b.dateIso) return 1
+    return 0
+  })
+
   return (
     <div className="h-full overflow-y-auto px-4 py-4">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-extrabold text-slate-900">
         <span>📝</span> מטלות כיתה ובית
       </h2>
-      <p className="mb-4 text-xs text-slate-400">מתעדכן אוטומטית מהודעות המורה בצ'אט - רק מה שקשור ללימודים ✏️</p>
+      <p className="mb-4 text-xs text-slate-400">מתעדכן אוטומטית מהודעות המורה - ממוין לפי תאריך ויום בשבוע ✏️</p>
 
-      {assignments.length === 0 && (
+      {sorted.length === 0 && (
         <p className="mb-6 rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400">אין עדיין מטלות פתוחות 🎉</p>
       )}
 
       <ul className="mb-6 flex flex-col gap-2.5">
-        {assignments.map((a) => (
+        {sorted.map((a) => (
           <li key={a.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-lg shadow-sm">
               {a.icon}
@@ -33,7 +40,7 @@ export default function BoardTab({ assignments }: Props) {
               )}
               <p className="text-sm leading-relaxed text-slate-800">{a.text}</p>
               <span className="mt-1 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[10px] font-bold text-sun-600">
-                📅 {a.dateLabel}
+                📅 {a.weekday ? `${a.weekday} · ` : ''}{a.dateLabel}
               </span>
             </div>
           </li>

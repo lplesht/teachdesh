@@ -26,6 +26,7 @@ export interface EventCard {
   id: string
   title: string
   date: string
+  dateIso?: string
   time?: string
   location: string
   icon: string
@@ -41,7 +42,18 @@ export interface AssignmentCard {
   text: string
   icon: string
   dateLabel: string
+  dateIso?: string
+  weekday?: string
   sourceMessageId?: string
+}
+
+export interface HolidayEvent {
+  id: string
+  title: string
+  startDate: string
+  endDate?: string
+  icon: string
+  kind: 'holiday' | 'vacation'
 }
 
 export interface AnnouncementCard {
@@ -146,6 +158,7 @@ export const initialEvents: EventCard[] = [
     id: 'e2',
     title: 'טיול שנתי - גן החיות בתל אביב',
     date: '1.10',
+    dateIso: '2026-10-01',
     location: 'בית הספר',
     icon: '🚌',
     rsvpYes: 22,
@@ -157,6 +170,7 @@ export const initialEvents: EventCard[] = [
     id: 'e3',
     title: 'אסיפת הורים',
     date: '24.9',
+    dateIso: '2026-09-24',
     time: '18:00',
     location: 'כיתה ג׳ 4',
     icon: '🗣️',
@@ -173,8 +187,28 @@ export const initialAssignments: AssignmentCard[] = [
     text: 'למדנו על משה ואהרון, עמודים 51-58',
     icon: '📖',
     dateLabel: '22.9',
+    dateIso: '2026-09-22',
+    weekday: 'יום שלישי',
     sourceMessageId: 'c5',
   },
+]
+
+// Israeli school-year holidays & vacations (5787 / 2026-2027), sourced dates.
+export const israeliHolidays: HolidayEvent[] = [
+  { id: 'h1', title: 'ראש השנה', startDate: '2026-09-11', endDate: '2026-09-13', icon: '🍯', kind: 'vacation' },
+  { id: 'h2', title: 'יום כיפור', startDate: '2026-09-21', icon: '🕊️', kind: 'holiday' },
+  { id: 'h3', title: 'חופשת סוכות (כיפור-סוכות-שמח"ת)', startDate: '2026-09-20', endDate: '2026-10-04', icon: '🌿', kind: 'vacation' },
+  { id: 'h4', title: 'סוכות (חג)', startDate: '2026-09-26', icon: '🌿', kind: 'holiday' },
+  { id: 'h5', title: 'שמחת תורה', startDate: '2026-10-03', icon: '📜', kind: 'holiday' },
+  { id: 'h6', title: 'חנוכה (נר ראשון)', startDate: '2026-12-04', icon: '🕎', kind: 'holiday' },
+  { id: 'h7', title: 'חופשת חנוכה', startDate: '2026-12-06', endDate: '2026-12-12', icon: '🕎', kind: 'vacation' },
+  { id: 'h8', title: 'ט"ו בשבט', startDate: '2027-01-22', icon: '🌳', kind: 'holiday' },
+  { id: 'h9', title: 'חופשת פורים', startDate: '2027-03-23', endDate: '2027-03-24', icon: '🎭', kind: 'vacation' },
+  { id: 'h10', title: 'חופשת פסח', startDate: '2027-04-13', endDate: '2027-04-28', icon: '🍷', kind: 'vacation' },
+  { id: 'h11', title: 'יום הזיכרון', startDate: '2027-05-11', icon: '🕯️', kind: 'holiday' },
+  { id: 'h12', title: 'יום העצמאות', startDate: '2027-05-12', icon: '🇮🇱', kind: 'vacation' },
+  { id: 'h13', title: 'חופשת שבועות', startDate: '2027-06-10', endDate: '2027-06-11', icon: '🌾', kind: 'vacation' },
+  { id: 'h14', title: 'סיום שנת הלימודים (משוער)', startDate: '2027-06-20', icon: '🎓', kind: 'vacation' },
 ]
 
 export const initialAnnouncements: AnnouncementCard[] = [

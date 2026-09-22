@@ -7,10 +7,10 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  { id: 'home', label: 'בית', icon: '🏠' },
-  { id: 'calendar', label: 'יומן', icon: '📅' },
-  { id: 'board', label: 'מטלות', icon: '📝' },
+  { id: 'home', label: "צ'אט", icon: '💬' },
   { id: 'announcements', label: 'הודעות', icon: '📌' },
+  { id: 'board', label: 'מטלות', icon: '📝' },
+  { id: 'calendar', label: 'יומן', icon: '📅' },
   { id: 'gallery', label: 'גלריה', icon: '📷' },
 ]
 

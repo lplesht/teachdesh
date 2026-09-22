@@ -1,8 +1,11 @@
+import { WEEKDAYS, shiftDay, toISO, weekdayName } from './dateUtils'
+
 export type DestinationTag = 'event' | 'assignment' | 'announcement' | 'gallery' | 'general'
 
 export interface EventMeta {
   title: string
   date: string
+  dateIso?: string
   time?: string
   icon: string
   location: string
@@ -13,6 +16,8 @@ export interface AssignmentMeta {
   text: string
   icon: string
   dateLabel: string
+  dateIso?: string
+  weekday?: string
 }
 
 export interface AnnouncementMeta {
@@ -91,7 +96,6 @@ const SUBJECT_PATTERNS: { names: string[]; label: string; icon: string }[] = [
 
 const DATE_RE = /(\d{1,2})[./](\d{1,2})/
 const TIME_RE = /(\d{1,2}):(\d{2})/
-const RELATIVE_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת']
 
 function eventIcon(text: string): string {
   if (text.includes('טיול')) return '🚌'
@@ -125,24 +129,38 @@ function announcementIcon(text: string): string {
   return '📌'
 }
 
-function shiftedDate(now: Date, days: number): string {
-  const d = new Date(now)
-  d.setDate(d.getDate() + days)
-  return `${d.getDate()}.${d.getMonth() + 1}`
+interface ResolvedDate {
+  label: string
+  weekday?: string
+  iso?: string
+}
+
+function withDate(d: Date): ResolvedDate {
+  return { label: `${d.getDate()}.${d.getMonth() + 1}`, weekday: weekdayName(d), iso: toISO(d) }
+}
+
+// Assumes the current year; rolls to next year if that would land far in the past
+// (handles a date like "5.1" mentioned in December, which means next January).
+function explicitDateObj(day: number, month: number, now: Date): Date {
+  const year = now.getFullYear()
+  let d = new Date(year, month - 1, day)
+  const diffDays = (now.getTime() - d.getTime()) / 86_400_000
+  if (diffDays > 20) d = new Date(year + 1, month - 1, day)
+  return d
 }
 
 // Turns relative day words into a real calendar date (based on when the message was sent),
-// since assignments/announcements need an actual date, not just "today"/"tomorrow".
-function resolveDateLabel(text: string, now: Date): string {
+// since assignments/events need an actual date, not just "today"/"tomorrow".
+function resolveDate(text: string, now: Date): ResolvedDate {
   const dateMatch = text.match(DATE_RE)
-  if (dateMatch) return `${dateMatch[1]}.${dateMatch[2]}`
-  if (text.includes('מחרתיים')) return shiftedDate(now, 2)
-  if (text.includes('מחר')) return shiftedDate(now, 1)
-  if (text.includes('אתמול')) return shiftedDate(now, -1)
-  if (text.includes('היום')) return shiftedDate(now, 0)
-  const day = RELATIVE_DAYS.find((d) => text.includes(d))
-  if (day) return day
-  return 'בקרוב'
+  if (dateMatch) return withDate(explicitDateObj(parseInt(dateMatch[1], 10), parseInt(dateMatch[2], 10), now))
+  if (text.includes('מחרתיים')) return withDate(shiftDay(now, 2))
+  if (text.includes('מחר')) return withDate(shiftDay(now, 1))
+  if (text.includes('אתמול')) return withDate(shiftDay(now, -1))
+  if (text.includes('היום')) return withDate(shiftDay(now, 0))
+  const day = WEEKDAYS.find((d) => text.includes(d))
+  if (day) return { label: day, weekday: day }
+  return { label: 'בקרוב' }
 }
 
 function truncate(text: string, max: number): string {
@@ -166,9 +184,11 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
   if (isEvent) {
     tags.push('event')
     const timeMatch = text.match(TIME_RE)
+    const resolved = resolveDate(text, sentAt)
     eventMeta = {
       title: truncate(text, 42),
-      date: resolveDateLabel(text, sentAt),
+      date: resolved.label,
+      dateIso: resolved.iso,
       time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
       icon: eventIcon(text),
       location: 'בית הספר',
@@ -178,11 +198,14 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
   if (isAssignment) {
     tags.push('assignment')
     const subject = extractSubject(text)
+    const resolved = resolveDate(text, sentAt)
     assignmentMeta = {
       subject: subject?.label,
       text: truncate(text, 70),
       icon: assignmentIcon(text),
-      dateLabel: resolveDateLabel(text, sentAt),
+      dateLabel: resolved.label,
+      dateIso: resolved.iso,
+      weekday: resolved.weekday,
     }
   }
 
@@ -191,7 +214,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     announcementMeta = {
       text: truncate(text, 60),
       icon: announcementIcon(text),
-      dateLabel: resolveDateLabel(text, sentAt),
+      dateLabel: resolveDate(text, sentAt).label,
     }
   }
 
