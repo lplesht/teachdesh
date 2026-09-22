@@ -132,7 +132,7 @@ export default function App() {
 
         <main className="min-h-0 flex-1">
           {tab === 'home' && (
-            <ChatScreen messages={messages} role={role} routingToast={routingToast} onSend={sendMessage} onLike={likeMessage} />
+            <ChatScreen messages={messages} role={role} routingToast={routingToast} onSend={sendMessage} onLike={likeMessage} onNavigate={setTab} />
           )}
           {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
           {tab === 'board' && <BoardTab assignments={assignments} />}

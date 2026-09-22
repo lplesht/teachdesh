@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { ChatMessage, Role } from '../data'
+import type { ChatMessage, Role, TabId } from '../data'
 import { destinationLabel, type DestinationTag } from '../classify'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   routingToast: string | null
   onSend: (text: string, photoDataUrl?: string) => void
   onLike: (id: string) => void
+  onNavigate: (tab: TabId) => void
 }
 
 const tagStyles: Record<DestinationTag, string> = {
@@ -18,7 +19,14 @@ const tagStyles: Record<DestinationTag, string> = {
   general: 'bg-slate-100 text-slate-500',
 }
 
-export default function ChatScreen({ messages, role, routingToast, onSend, onLike }: Props) {
+const tagDestination: Partial<Record<DestinationTag, TabId>> = {
+  event: 'calendar',
+  assignment: 'board',
+  announcement: 'announcements',
+  gallery: 'gallery',
+}
+
+export default function ChatScreen({ messages, role, routingToast, onSend, onLike, onNavigate }: Props) {
   const [text, setText] = useState('')
   const [photo, setPhoto] = useState<string | undefined>()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -69,11 +77,19 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
 
               {isTeacher && shownTags.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1 px-1">
-                  {shownTags.map((tag) => (
-                    <span key={tag} className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tagStyles[tag]}`}>
-                      🤖 {destinationLabel[tag]}
-                    </span>
-                  ))}
+                  {shownTags.map((tag) => {
+                    const destination = tagDestination[tag]
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => destination && onNavigate(destination)}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition hover:opacity-80 ${tagStyles[tag]}`}
+                      >
+                        🤖 {destinationLabel[tag]}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
