@@ -134,12 +134,18 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                 📎
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-              <input
+              <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submit()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    submit()
+                  }
+                }}
                 placeholder="כתבי עדכון, שיעורי בית, אירוע..."
-                className="w-full rounded-full border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                rows={Math.min(5, text.split('\n').length || 1)}
+                className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-2.5 text-sm leading-relaxed outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
               />
               <button
                 type="button"
@@ -154,7 +160,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               </button>
             </div>
             <p className="mt-1.5 px-1 text-[10px] text-slate-400">
-              ✨ המערכת מזהה אוטומטית אירועים, מטלות לימודיות, הודעות ותמונות - ומוסיפה אותן ללוחות המתאימים לפי תאריך
+              ✨ המערכת מזהה אוטומטית אירועים, מטלות לימודיות, הודעות ותמונות - ומוסיפה אותן ללוחות המתאימים לפי תאריך · Enter לשורה חדשה, Ctrl+Enter לשליחה
             </p>
           </>
         ) : (
