@@ -76,7 +76,7 @@ export interface Photo {
 
 export const classInfo: ClassInfo = {
   className: 'ג׳ 4',
-  schoolName: 'בית ספר יסודי "הדקל"',
+  schoolName: 'בית ספר יסודי "הרצוג"',
   teacherName: 'תהילה שם טוב',
   teacherInitials: 'תש',
 }
