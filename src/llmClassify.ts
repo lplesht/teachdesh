@@ -1,8 +1,10 @@
 import {
+  GENERAL_SUBJECT,
   announcementIcon,
   assignmentIcon,
   cleanLine,
   eventIcon,
+  extractSource,
   extractSubject,
   finalizeResult,
   resolveDate,
@@ -21,6 +23,7 @@ interface LLMSegment {
   category: string
   lines: number[]
   subject?: string
+  source?: string
 }
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
@@ -45,9 +48,10 @@ const PROMPT = `למטה מופיעה הודעת מורה לאפליקציית �
 עבור כל מקטע ציין/י:
 - category: אחת משלוש הקטגוריות.
 - lines: מערך של מספרי השורות (מספרים שלמים בלבד) ששייכים למקטע הזה.
-- subject: (רק למקטעי assignment) שם המקצוע, למשל: חשבון, שפה, תנ"ך, אנגלית.
+- subject: (רק למקטעי assignment) שם המקצוע, למשל: חשבון, שפה, תנ"ך, אנגלית. אם המטלה אינה קשורה למקצוע ספציפי, כתבי "${GENERAL_SUBJECT}".
+- source: (רק למקטעי assignment, אם רלוונטי) איפה המשימה נמצאת בפועל - שם הטקסט/הסיפור שחולק לתלמידים, שם החוברת, או שם האתר. השאירי ריק אם לא מוזכר מקור ספציפי (למשל עמודים בספר לימוד רגיל).
 
-החזירי אך ורק מערך JSON תקין במבנה [{ "category": "...", "lines": [0, 3, 7], "subject": "..." }], ללא הסבר וללא markdown.`
+החזירי אך ורק מערך JSON תקין במבנה [{ "category": "...", "lines": [0, 3, 7], "subject": "...", "source": "..." }], ללא הסבר וללא markdown.`
 
 function splitLines(text: string): string[] {
   return text
@@ -71,6 +75,7 @@ function buildRequestBody(lines: string[]) {
             category: { type: 'STRING', enum: ['event', 'assignment', 'announcement'] },
             lines: { type: 'ARRAY', items: { type: 'INTEGER' } },
             subject: { type: 'STRING' },
+            source: { type: 'STRING' },
           },
           required: ['category', 'lines'],
         },
@@ -139,8 +144,9 @@ function buildMetasFromSegments(segments: LLMSegment[], lines: string[], sentAt:
     } else if (seg.category === 'assignment') {
       const iconMatch = extractSubject(seg.subject ?? text)
       assignments.push({
-        subject: seg.subject,
-        text,
+        subject: seg.subject?.trim() || GENERAL_SUBJECT,
+        source: seg.source?.trim() || extractSource(text),
+        content: text,
         icon: iconMatch?.icon ?? assignmentIcon(text),
         dateLabel: resolved.label,
         dateIso: resolved.iso,

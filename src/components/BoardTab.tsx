@@ -26,13 +26,18 @@ export default function BoardTab({ assignments }: Props) {
           <li key={a.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg">{a.icon}</span>
             <div className="min-w-0 flex-1">
-              {a.subject && (
-                <span className="mb-1 inline-block rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
-                  {a.subject}
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="inline-block rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                  מקצוע: {a.subject}
                 </span>
-              )}
-              <ExpandableText text={a.text} className="text-sm leading-relaxed text-slate-800" />
-              <span className="mt-1 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[10px] font-bold text-sun-600">
+                {a.source && (
+                  <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                    מקור: {a.source}
+                  </span>
+                )}
+              </div>
+              <ExpandableText text={a.content} className="text-sm leading-relaxed text-slate-800" />
+              <span className="mt-1.5 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[10px] font-bold text-sun-600">
                 {a.weekday ? `${a.weekday} · ` : ''}
                 {a.dateLabel}
               </span>

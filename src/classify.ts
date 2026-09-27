@@ -12,13 +12,16 @@ export interface EventMeta {
 }
 
 export interface AssignmentMeta {
-  subject?: string
-  text: string
+  subject: string
+  source?: string
+  content: string
   icon: string
   dateLabel: string
   dateIso?: string
   weekday?: string
 }
+
+export const GENERAL_SUBJECT = '(כללי)'
 
 export interface AnnouncementMeta {
   text: string
@@ -156,6 +159,24 @@ export function assignmentIcon(text: string): string {
   return '📓'
 }
 
+const QUOTE_RE = /["״"]([^"״"”]{2,40})["״"”]/
+
+// Best-effort: identify what the assignment is actually based on - a named
+// text handed to students, a workbook, or a website - so parents know where
+// to go, not just what the topic is.
+export function extractSource(text: string): string | undefined {
+  const quoted = text.match(QUOTE_RE)
+  if (quoted) {
+    const name = quoted[1].replace(/\*/g, '').trim()
+    if (text.includes('חוברת')) return `חוברת: ${name}`
+    if (name) return `טקסט: ${name}`
+  }
+  const siteMatch = text.match(/אתר\s+([א-ת]+)/)
+  if (siteMatch) return `אתר ${siteMatch[1]}`
+  if (text.includes('חוברת')) return 'חוברת עבודה'
+  return undefined
+}
+
 export function announcementIcon(text: string): string {
   if (text.includes('תלבושת')) return '👕'
   if (text.includes('שכפ') || text.includes('ציוד') || text.includes('בקבוק מים')) return '🎒'
@@ -224,8 +245,9 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     const combined = buffer.join(' · ')
     const subjectFallback = currentSubject ?? extractSubject(combined)
     assignments.push({
-      subject: subjectFallback?.label,
-      text: combined,
+      subject: subjectFallback?.label ?? GENERAL_SUBJECT,
+      source: extractSource(combined),
+      content: combined,
       icon: subjectFallback?.icon ?? assignmentIcon(combined),
       dateLabel: bufferDate?.label ?? 'בקרוב',
       dateIso: bufferDate?.iso,

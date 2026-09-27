@@ -38,8 +38,9 @@ export interface EventCard {
 
 export interface AssignmentCard {
   id: string
-  subject?: string
-  text: string
+  subject: string
+  source?: string
+  content: string
   icon: string
   dateLabel: string
   dateIso?: string
@@ -184,7 +185,8 @@ export const initialAssignments: AssignmentCard[] = [
   {
     id: 'a1',
     subject: 'תנ"ך',
-    text: 'למדנו על משה ואהרון, עמודים 51-58',
+    source: 'ספר התנ"ך, עמודים 51-58',
+    content: 'למדנו על משה ואהרון, עמודים 51-58',
     icon: '📖',
     dateLabel: '22.9',
     dateIso: '2026-09-22',

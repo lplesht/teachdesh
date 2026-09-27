@@ -75,7 +75,8 @@ export default function App() {
         ...newAssignments.map((assignmentMeta, i) => ({
           id: `a${Date.now()}_${i}`,
           subject: assignmentMeta.subject,
-          text: assignmentMeta.text,
+          source: assignmentMeta.source,
+          content: assignmentMeta.content,
           icon: assignmentMeta.icon,
           dateLabel: assignmentMeta.dateLabel,
           dateIso: assignmentMeta.dateIso,
