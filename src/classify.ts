@@ -43,9 +43,6 @@ const EVENT_KEYWORD_GROUPS: (string | RegExp)[][] = [
   ['מסיבה'],
   ['אסיפה'],
   ['טיול'],
-  ['חג'],
-  ['סוכות'],
-  ['חנוכה'],
   ['יום הולדת'],
   ['אירוע'],
   [/טקס(?!ט)/], // "ceremony", but not as a prefix of "טקסט" (text)
@@ -54,7 +51,10 @@ const EVENT_KEYWORD_GROUPS: (string | RegExp)[][] = [
   ['יום ספר פתוח'],
   ['פעילות'],
   ['ספורט יום'],
-  ['חופשה', 'חופש'],
+  // A holiday/vacation notice tends to say the same thing several different
+  // ways in one message (חג, סוכות, חנוכה, חופשה) plus a separate "we're
+  // back on X" line - all one topic, not one event per phrasing.
+  ['חג', 'סוכות', 'חנוכה', 'חופשה', 'חופש', 'נחזור לשגרה', 'חוזרים לבית הספר'],
 ]
 
 function matchesKeyword(line: string, keyword: string | RegExp): boolean {
@@ -247,7 +247,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
   let currentSubject: { label: string; icon: string } | undefined
   let buffer: string[] = []
   let bufferDate: ResolvedDate | undefined
-  const usedEventGroups = new Set<(string | RegExp)[]>()
+  const eventGroupLines = new Map<(string | RegExp)[], string[]>()
 
   const flushBuffer = () => {
     if (buffer.length === 0) return
@@ -278,21 +278,11 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
       continue
     }
 
-    const matchedEventGroup = EVENT_KEYWORD_GROUPS.find(
-      (group) => !usedEventGroups.has(group) && group.some((k) => matchesKeyword(line, k)),
-    )
+    const matchedEventGroup = EVENT_KEYWORD_GROUPS.find((group) => group.some((k) => matchesKeyword(line, k)))
     if (matchedEventGroup) {
-      usedEventGroups.add(matchedEventGroup)
-      const timeMatch = line.match(TIME_RE)
-      const resolved = resolveDate(line, sentAt)
-      events.push({
-        title: cleanLine(line),
-        date: resolved.label,
-        dateIso: resolved.iso,
-        time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
-        icon: eventIcon(line),
-        location: 'בית הספר',
-      })
+      const linesForGroup = eventGroupLines.get(matchedEventGroup) ?? []
+      linesForGroup.push(cleanLine(line))
+      eventGroupLines.set(matchedEventGroup, linesForGroup)
     }
 
     if (ANNOUNCEMENT_KEYWORDS.some((k) => line.includes(k))) {
@@ -308,6 +298,23 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
       const resolved = resolveDate(line, sentAt)
       if (resolved.iso) bufferDate = resolved
     }
+  }
+
+  // One event per matched group, even if several lines mentioned it in
+  // different words - prefer whichever of those lines actually carries a
+  // resolvable date over just taking the first mention.
+  for (const candidateLines of eventGroupLines.values()) {
+    const bestLine = candidateLines.find((l) => resolveDate(l, sentAt).iso) ?? candidateLines[0]
+    const timeMatch = bestLine.match(TIME_RE)
+    const resolved = resolveDate(bestLine, sentAt)
+    events.push({
+      title: bestLine,
+      date: resolved.label,
+      dateIso: resolved.iso,
+      time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
+      icon: eventIcon(bestLine),
+      location: 'בית הספר',
+    })
   }
 
   flushBuffer()
