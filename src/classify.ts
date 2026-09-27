@@ -64,19 +64,28 @@ function matchesKeyword(line: string, keyword: string | RegExp): boolean {
 // Shared by both the rule-based classifier and the LLM-based one: tags are
 // derived from which arrays actually got entries, plus whether a photo was
 // attached, falling back to "general" (chat-only, no cube) when nothing matched.
+//
+// TEMPORARY (per request): nothing routes to the calendar right now - fold
+// anything that would've been an event into הודעות instead. Revert by
+// restoring the commented-out lines below once calendar routing is revisited.
 export function finalizeResult(
   hasPhoto: boolean,
   events: EventMeta[],
   assignments: AssignmentMeta[],
   announcements: AnnouncementMeta[],
 ): ClassificationResult {
+  const redirectedAnnouncements = [
+    ...announcements,
+    ...events.map((e): AnnouncementMeta => ({ text: e.title, icon: e.icon, dateLabel: e.date })),
+  ]
+
   const tags = new Set<DestinationTag>()
   if (hasPhoto) tags.add('gallery')
-  if (events.length > 0) tags.add('event')
+  // if (events.length > 0) tags.add('event')
   if (assignments.length > 0) tags.add('assignment')
-  if (announcements.length > 0) tags.add('announcement')
+  if (redirectedAnnouncements.length > 0) tags.add('announcement')
   if (tags.size === 0) tags.add('general')
-  return { tags: [...tags], events, assignments, announcements }
+  return { tags: [...tags], events: [], assignments, announcements: redirectedAnnouncements }
 }
 
 // Study-related only: what was taught/learned, homework, tests - goes to לוח המטלות.
