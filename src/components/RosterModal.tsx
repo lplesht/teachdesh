@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { PaperclipIcon, RosterIcon } from './icons'
 
 interface Props {
   students: string[]
@@ -42,7 +43,10 @@ export default function RosterModal({ students, onClose, onUpdate }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-1 flex items-center gap-2 text-base font-extrabold text-slate-900">
-          <span>🧾</span> עדכון דף קשר כיתתי
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand-50 text-brand-600">
+            <RosterIcon className="h-[18px] w-[18px]" />
+          </span>
+          עדכון דף קשר כיתתי
         </h2>
         <p className="mb-4 text-xs text-slate-500">
           כמות התלמידים בדשבורד מבוססת על רשימת השמות כאן. אפשר להעלות קובץ (CSV/TXT) או להדביק רשימה - שם תלמיד בכל שורה.
@@ -53,7 +57,8 @@ export default function RosterModal({ students, onClose, onUpdate }: Props) {
           onClick={() => fileRef.current?.click()}
           className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-300 bg-brand-50/60 py-3 text-xs font-bold text-brand-700"
         >
-          📤 העלאת קובץ דף קשר {fileName ? `· ${fileName}` : ''}
+          <PaperclipIcon className="h-4 w-4" />
+          העלאת קובץ דף קשר {fileName ? `· ${fileName}` : ''}
         </button>
         <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFile} />
 

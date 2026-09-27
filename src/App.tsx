@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Header from './components/Header'
-import NavDrawer from './components/NavDrawer'
+import BottomNav from './components/BottomNav'
 import ChatScreen from './components/ChatScreen'
 import CalendarTab from './components/CalendarTab'
 import BoardTab from './components/BoardTab'
@@ -27,7 +27,6 @@ import {
 export default function App() {
   const [role, setRole] = useState<Role>('parent')
   const [tab, setTab] = useState<TabId>('home')
-  const [menuOpen, setMenuOpen] = useState(false)
   const [students, setStudents] = useState<string[]>(initialStudents)
   const [rosterOpen, setRosterOpen] = useState(false)
 
@@ -114,7 +113,7 @@ export default function App() {
       ])
     }
 
-    showToast(`🤖 ההודעה סווגה אוטומטית ונוספה ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
+    showToast(`נוסף אוטומטית ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
   }
 
   const likeMessage = (id: string) => {
@@ -138,15 +137,7 @@ export default function App() {
   return (
     <div className="min-h-dvh bg-slate-200 sm:flex sm:items-center sm:justify-center sm:p-8">
       <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f6fb] sm:h-[860px] sm:rounded-[2.5rem] sm:shadow-2xl sm:ring-8 sm:ring-slate-900/90">
-        <Header
-          role={role}
-          onRoleChange={setRole}
-          studentsCount={students.length}
-          onOpenRoster={() => setRosterOpen(true)}
-          tab={tab}
-          onOpenMenu={() => setMenuOpen(true)}
-          onBack={() => setTab('home')}
-        />
+        <Header role={role} onRoleChange={setRole} studentsCount={students.length} onOpenRoster={() => setRosterOpen(true)} />
 
         <main className="min-h-0 flex-1">
           {tab === 'home' && (
@@ -158,10 +149,9 @@ export default function App() {
           {tab === 'gallery' && <GalleryTab photos={photos} />}
         </main>
 
-        <NavDrawer
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          onNavigate={setTab}
+        <BottomNav
+          active={tab}
+          onChange={setTab}
           badges={{
             calendar: events.length || undefined,
             board: assignments.length || undefined,

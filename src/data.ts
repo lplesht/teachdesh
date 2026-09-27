@@ -197,7 +197,7 @@ export const initialAssignments: AssignmentCard[] = [
 export const israeliHolidays: HolidayEvent[] = [
   { id: 'h1', title: 'ראש השנה', startDate: '2026-09-11', endDate: '2026-09-13', icon: '🍯', kind: 'vacation' },
   { id: 'h2', title: 'יום כיפור', startDate: '2026-09-21', icon: '🕊️', kind: 'holiday' },
-  { id: 'h3', title: 'חופשת סוכות (כיפור-סוכות-שמח"ת)', startDate: '2026-09-20', endDate: '2026-10-04', icon: '🌿', kind: 'vacation' },
+  { id: 'h3', title: 'חופשת סוכות (כיפור-סוכות-שמח"ת)', startDate: '2026-09-20', endDate: '2026-10-03', icon: '🌿', kind: 'vacation' },
   { id: 'h4', title: 'סוכות (חג)', startDate: '2026-09-26', icon: '🌿', kind: 'holiday' },
   { id: 'h5', title: 'שמחת תורה', startDate: '2026-10-03', icon: '📜', kind: 'holiday' },
   { id: 'h6', title: 'חנוכה (נר ראשון)', startDate: '2026-12-04', icon: '🕎', kind: 'holiday' },
@@ -226,14 +226,6 @@ export const initialAnnouncements: AnnouncementCard[] = [
     dateLabel: 'עד יום חמישי',
     sourceMessageId: 'c4',
   },
-]
-
-export const dutyRoster = [
-  { day: 'ראשון', parent: 'משפחת כהן', task: 'חטיף בריא' },
-  { day: 'שני', parent: 'משפחת לוי', task: 'ליווי לספרייה' },
-  { day: 'שלישי', parent: 'משפחת מזרחי', task: 'חטיף בריא' },
-  { day: 'רביעי', parent: 'משפחת אברהם', task: 'עזרה בהפסקה' },
-  { day: 'חמישי', parent: 'משפחת פרץ', task: 'חטיף בריא' },
 ]
 
 export const initialPhotos: Photo[] = [

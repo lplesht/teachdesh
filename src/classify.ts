@@ -33,22 +33,30 @@ export interface ClassificationResult {
   announcements: AnnouncementMeta[]
 }
 
-const EVENT_KEYWORDS = [
-  'מסיבה',
-  'אסיפה',
-  'טיול',
-  'חג',
-  'סוכות',
-  'חנוכה',
-  'יום הולדת',
-  'אירוע',
-  'טקס',
-  'הצגה',
-  'מופע',
-  'יום ספר פתוח',
-  'פעילות',
-  'ספורט יום',
+// Grouped so different spellings/forms of the same concept ("חופשה"/"חופש")
+// are deduped together - a vacation mentioned twice in one message should
+// still only produce one calendar event, not one per wording.
+const EVENT_KEYWORD_GROUPS: (string | RegExp)[][] = [
+  ['מסיבה'],
+  ['אסיפה'],
+  ['טיול'],
+  ['חג'],
+  ['סוכות'],
+  ['חנוכה'],
+  ['יום הולדת'],
+  ['אירוע'],
+  [/טקס(?!ט)/], // "ceremony", but not as a prefix of "טקסט" (text)
+  ['הצגה'],
+  ['מופע'],
+  ['יום ספר פתוח'],
+  ['פעילות'],
+  ['ספורט יום'],
+  ['חופשה', 'חופש'],
 ]
+
+function matchesKeyword(line: string, keyword: string | RegExp): boolean {
+  return typeof keyword === 'string' ? line.includes(keyword) : keyword.test(line)
+}
 
 // Study-related only: what was taught/learned, homework, tests - goes to לוח המטלות.
 const ASSIGNMENT_KEYWORDS = [
@@ -59,6 +67,12 @@ const ASSIGNMENT_KEYWORDS = [
   'סיכמנו',
   'תרגיל',
   'תרגילים',
+  'תרגול',
+  'תרגולים',
+  'משימה',
+  'משימות',
+  'חוברת',
+  'חוברות',
   'דף עבודה',
   'עמוד',
   'עמודים',
@@ -77,7 +91,7 @@ const ANNOUNCEMENT_KEYWORDS = [
   'ציוד',
   'שכפ"ץ',
   'שכפץ',
-  'מחברת',
+  'מחברת הקשר',
   'בקבוק מים',
   'טופס',
   'לחתום',
@@ -87,8 +101,8 @@ const ANNOUNCEMENT_KEYWORDS = [
 const SUBJECT_PATTERNS: { names: string[]; label: string; icon: string }[] = [
   { names: ['תנ"ך', 'תנ״ך', 'תנך'], label: 'תנ"ך', icon: '📖' },
   { names: ['חשבון', 'מתמטיקה'], label: 'חשבון', icon: '➗' },
+  { names: ['שפה', 'עברית'], label: 'שפה', icon: '📝' },
   { names: ['אנגלית'], label: 'אנגלית', icon: '🔤' },
-  { names: ['עברית'], label: 'עברית', icon: '✍️' },
   { names: ['מדעים', 'מדע'], label: 'מדעים', icon: '🔬' },
   { names: ['היסטוריה'], label: 'היסטוריה', icon: '🏛️' },
   { names: ['גיאוגרפיה'], label: 'גיאוגרפיה', icon: '🗺️' },
@@ -96,12 +110,15 @@ const SUBJECT_PATTERNS: { names: string[]; label: string; icon: string }[] = [
 
 const DATE_RE = /(\d{1,2})[./](\d{1,2})/
 const TIME_RE = /(\d{1,2}):(\d{2})/
+const BULLET_RE = /^[•‣▪●○]\s*/
+const SECTION_START_RE = /^(?:\p{Extended_Pictographic}|\d+[.)])/u
 
 function eventIcon(text: string): string {
   if (text.includes('טיול')) return '🚌'
   if (text.includes('מסיבה')) return '🎉'
   if (text.includes('אסיפה')) return '🗣️'
   if (text.includes('יום הולדת')) return '🎂'
+  if (text.includes('חופשה') || text.includes('חופש')) return '🏖️'
   if (text.includes('חג') || text.includes('סוכות') || text.includes('חנוכה')) return '🍎'
   if (text.includes('הצגה') || text.includes('מופע') || text.includes('טקס')) return '🎭'
   if (text.includes('ספורט')) return '⚽'
@@ -116,7 +133,7 @@ function assignmentIcon(text: string): string {
   const subject = extractSubject(text)
   if (subject) return subject.icon
   if (text.includes('מבחן') || text.includes('בוחן')) return '✏️'
-  if (text.includes('תרגיל')) return '🧮'
+  if (text.includes('תרגיל') || text.includes('תרגול')) return '🧮'
   if (text.includes('דף עבודה')) return '📄'
   return '📓'
 }
@@ -164,24 +181,21 @@ function resolveDate(text: string, now: Date): ResolvedDate {
 }
 
 function truncate(text: string, max: number): string {
-  const firstLine = text.split('\n')[0].trim()
-  if (firstLine.length <= max) return firstLine
-  return `${firstLine.slice(0, max).trim()}…`
+  if (text.length <= max) return text
+  return `${text.slice(0, max).trim()}…`
 }
 
-// A teacher message often mixes several unrelated topics (an event, a homework
-// note, a reminder) in one go - split it into per-line/per-sentence segments so
-// each topic can be classified and routed on its own, instead of the whole
-// message being dumped into every matching category at once. The lookahead
-// keeps a decimal-looking date like "1.10" from being split mid-number.
-function splitSegments(text: string): string[] {
-  return text
-    .split('\n')
-    .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[^\d]|$)/))
-    .map((s) => s.trim())
-    .filter(Boolean)
+function cleanLine(line: string): string {
+  return line.replace(BULLET_RE, '').replace(/\*/g, '').trim()
 }
 
+// A real teacher message often mixes several unrelated topics - a school-closure
+// notice, homework for two different subjects, a reminder - in one go, and often
+// groups homework under a "📖 1. subject" / "🔢 2. subject" style header followed
+// by bullet-point tasks. This walks the message line by line, keeps track of the
+// active subject header, and groups its bullets into one assignment card per
+// subject instead of a single blended card (or, worse, losing the bullets
+// entirely because no single bullet contains a homework keyword on its own).
 export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = new Date()): ClassificationResult {
   const tags = new Set<DestinationTag>()
   if (hasPhoto) tags.add('gallery')
@@ -190,50 +204,74 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
   const assignments: AssignmentMeta[] = []
   const announcements: AnnouncementMeta[] = []
 
-  const segments = splitSegments(text)
+  let currentSubject: { label: string; icon: string } | undefined
+  let buffer: string[] = []
+  let bufferDate: ResolvedDate | undefined
+  const usedEventGroups = new Set<(string | RegExp)[]>()
 
-  for (const segment of segments) {
-    const isEvent = EVENT_KEYWORDS.some((k) => segment.includes(k)) || DATE_RE.test(segment)
-    const isAssignment = ASSIGNMENT_KEYWORDS.some((k) => segment.includes(k))
-    const isAnnouncement = ANNOUNCEMENT_KEYWORDS.some((k) => segment.includes(k))
+  const flushBuffer = () => {
+    if (buffer.length === 0) return
+    const combined = buffer.join(' · ')
+    assignments.push({
+      subject: currentSubject?.label,
+      text: truncate(combined, 200),
+      icon: currentSubject?.icon ?? assignmentIcon(combined),
+      dateLabel: bufferDate?.label ?? 'בקרוב',
+      dateIso: bufferDate?.iso,
+      weekday: bufferDate?.weekday,
+    })
+    buffer = []
+    bufferDate = undefined
+  }
 
-    if (isEvent) {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+
+  for (const line of lines) {
+    if (SECTION_START_RE.test(line)) {
+      flushBuffer()
+      currentSubject = extractSubject(line)
+      continue
+    }
+
+    const matchedEventGroup = EVENT_KEYWORD_GROUPS.find(
+      (group) => !usedEventGroups.has(group) && group.some((k) => matchesKeyword(line, k)),
+    )
+    if (matchedEventGroup) {
+      usedEventGroups.add(matchedEventGroup)
       tags.add('event')
-      const timeMatch = segment.match(TIME_RE)
-      const resolved = resolveDate(segment, sentAt)
+      const timeMatch = line.match(TIME_RE)
+      const resolved = resolveDate(line, sentAt)
       events.push({
-        title: truncate(segment, 42),
+        title: truncate(cleanLine(line), 60),
         date: resolved.label,
         dateIso: resolved.iso,
         time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
-        icon: eventIcon(segment),
+        icon: eventIcon(line),
         location: 'בית הספר',
       })
     }
 
-    if (isAssignment) {
-      tags.add('assignment')
-      const subject = extractSubject(segment)
-      const resolved = resolveDate(segment, sentAt)
-      assignments.push({
-        subject: subject?.label,
-        text: truncate(segment, 70),
-        icon: assignmentIcon(segment),
-        dateLabel: resolved.label,
-        dateIso: resolved.iso,
-        weekday: resolved.weekday,
+    if (ANNOUNCEMENT_KEYWORDS.some((k) => line.includes(k))) {
+      tags.add('announcement')
+      announcements.push({
+        text: cleanLine(line),
+        icon: announcementIcon(line),
+        dateLabel: resolveDate(line, sentAt).label,
       })
     }
 
-    if (isAnnouncement) {
-      tags.add('announcement')
-      announcements.push({
-        text: truncate(segment, 60),
-        icon: announcementIcon(segment),
-        dateLabel: resolveDate(segment, sentAt).label,
-      })
+    if (BULLET_RE.test(line) || ASSIGNMENT_KEYWORDS.some((k) => line.includes(k))) {
+      tags.add('assignment')
+      buffer.push(cleanLine(line))
+      const resolved = resolveDate(line, sentAt)
+      if (resolved.iso) bufferDate = resolved
     }
   }
+
+  flushBuffer()
 
   if (tags.size === 0) tags.add('general')
 
@@ -241,9 +279,9 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
 }
 
 export const destinationLabel: Record<DestinationTag, string> = {
-  event: '📅 יומן האירועים',
-  assignment: '📝 מטלות כיתה ובית',
-  announcement: '📌 הודעות',
-  gallery: '📷 הגלריה',
-  general: '🏠 עדכונים אחרונים',
+  event: 'יומן האירועים',
+  assignment: 'מטלות כיתה ובית',
+  announcement: 'הודעות',
+  gallery: 'הגלריה',
+  general: 'עדכונים אחרונים',
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Photo } from '../data'
+import { ImageIcon } from './icons'
 
 interface Props {
   photos: Photo[]
@@ -11,7 +12,10 @@ export default function GalleryTab({ photos }: Props) {
   return (
     <div className="h-full overflow-y-auto px-4 py-4">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-extrabold text-slate-900">
-        <span>📷</span> תמונות כיתתיות
+        <span className="grid h-8 w-8 place-items-center rounded-xl bg-leaf-50 text-leaf-600">
+          <ImageIcon className="h-[18px] w-[18px]" />
+        </span>
+        תמונות כיתתיות
       </h2>
       <p className="mb-4 text-xs text-slate-400">נאספות אוטומטית כשהמורה מצרפת תמונה לצ'אט</p>
 

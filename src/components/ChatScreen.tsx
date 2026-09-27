@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ChatMessage, Role, TabId } from '../data'
 import { destinationLabel, type DestinationTag } from '../classify'
+import { HeartIcon, PaperclipIcon } from './icons'
 
 interface Props {
   messages: ChatMessage[]
@@ -66,8 +67,11 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                   isTeacher ? 'rounded-ss-sm bg-brand-50 text-slate-800' : 'rounded-se-sm bg-slate-100 text-slate-800'
                 }`}
               >
-                <p className="mb-0.5 text-[11px] font-bold text-brand-700">
-                  {isTeacher ? `👩‍🏫 ${m.authorName}` : m.authorName}
+                <p className="mb-0.5 flex items-center gap-1.5 text-[11px] font-bold text-brand-700">
+                  {m.authorName}
+                  {isTeacher && (
+                    <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[9px] font-bold text-white">מורה</span>
+                  )}
                 </p>
                 {m.photoUrl && (
                   <img src={m.photoUrl} alt="" className="mb-2 max-h-48 w-full rounded-xl object-cover" />
@@ -86,7 +90,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                         onClick={() => destination && onNavigate(destination)}
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition hover:opacity-80 ${tagStyles[tag]}`}
                       >
-                        🤖 {destinationLabel[tag]}
+                        {destinationLabel[tag]}
                       </button>
                     )
                   })}
@@ -98,9 +102,10 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                 <button
                   type="button"
                   onClick={() => onLike(m.id)}
-                  className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
+                  className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
                 >
-                  ❤️ {m.likes}
+                  <HeartIcon className="h-3.5 w-3.5" filled={m.likes > 0} />
+                  {m.likes}
                 </button>
                 {isTeacher && m.readBy > 0 && <span>נקרא ע"י {m.readBy} הורים</span>}
               </div>
@@ -128,10 +133,10 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-lg text-slate-500 transition hover:bg-slate-200"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
                 aria-label="צרף תמונה"
               >
-                📎
+                <PaperclipIcon className="h-[18px] w-[18px]" />
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
               <textarea
@@ -160,7 +165,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               </button>
             </div>
             <p className="mt-1.5 px-1 text-[10px] text-slate-400">
-              ✨ המערכת מזהה אוטומטית אירועים, מטלות לימודיות, הודעות ותמונות - ומוסיפה אותן ללוחות המתאימים לפי תאריך · Enter לשורה חדשה, Ctrl+Enter לשליחה
+              המערכת מסווגת אוטומטית אירועים, מטלות, הודעות ותמונות ללוחות המתאימים · Enter לשורה חדשה, Ctrl+Enter לשליחה
             </p>
           </>
         ) : (

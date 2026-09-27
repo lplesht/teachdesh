@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { israeliHolidays, type EventCard, type HolidayEvent, type Role } from '../data'
 import { HEBREW_MONTHS, WEEKDAY_SHORT, shiftDay, toISO, weekdayName } from '../dateUtils'
+import { CalendarIcon } from './icons'
 
 interface Props {
   events: EventCard[]
@@ -63,7 +64,10 @@ export default function CalendarTab({ events, role, onRsvp }: Props) {
     <div className="h-full overflow-y-auto px-4 py-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
-          <span>📅</span> יומן {view === 'month' ? 'חודשי' : 'שבועי'}
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand-50 text-brand-600">
+            <CalendarIcon className="h-[18px] w-[18px]" />
+          </span>
+          יומן {view === 'month' ? 'חודשי' : 'שבועי'}
         </h2>
         <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1 text-[11px] font-semibold">
           <button
@@ -175,7 +179,7 @@ export default function CalendarTab({ events, role, onRsvp }: Props) {
                     ev.myRsvp === 'yes' ? 'bg-leaf-500 text-white' : 'bg-leaf-50 text-leaf-600'
                   }`}
                 >
-                  ✅ מגיע/ה ({ev.rsvpYes})
+                  מגיע/ה ({ev.rsvpYes})
                 </button>
                 <button
                   type="button"
@@ -184,12 +188,12 @@ export default function CalendarTab({ events, role, onRsvp }: Props) {
                     ev.myRsvp === 'no' ? 'bg-slate-500 text-white' : 'bg-slate-100 text-slate-500'
                   }`}
                 >
-                  ❌ לא מגיע/ה ({ev.rsvpNo})
+                  לא מגיע/ה ({ev.rsvpNo})
                 </button>
               </div>
             ) : (
               <p className="mt-1.5 text-[11px] text-slate-400">
-                ✅ {ev.rsvpYes} מגיעים · ❌ {ev.rsvpNo} לא מגיעים
+                {ev.rsvpYes} מגיעים · {ev.rsvpNo} לא מגיעים
               </p>
             )}
           </div>
