@@ -205,9 +205,11 @@ export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: D
       // A rich message that came back with nothing usable is more likely a
       // parsing/prompt miss than a genuine "nothing to categorize" - prefer
       // the deterministic fallback over showing an empty result.
+      console.warn('Gemini returned nothing usable, falling back', segments)
       return null
     }
 
+    console.info('Gemini classification used', { segments })
     return finalizeResult(hasPhoto, events, assignments, announcements)
   } catch (err) {
     console.warn('Gemini classification failed, falling back', err)
