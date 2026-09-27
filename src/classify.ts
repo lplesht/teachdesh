@@ -198,11 +198,6 @@ export function resolveDate(text: string, now: Date): ResolvedDate {
   return { label: 'בקרוב' }
 }
 
-export function truncate(text: string, max: number): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, max).trim()}…`
-}
-
 export function cleanLine(line: string): string {
   return line.replace(BULLET_RE, '').replace(/\*/g, '').trim()
 }
@@ -230,7 +225,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     const subjectFallback = currentSubject ?? extractSubject(combined)
     assignments.push({
       subject: subjectFallback?.label,
-      text: truncate(combined, 200),
+      text: combined,
       icon: subjectFallback?.icon ?? assignmentIcon(combined),
       dateLabel: bufferDate?.label ?? 'בקרוב',
       dateIso: bufferDate?.iso,
@@ -260,7 +255,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
       const timeMatch = line.match(TIME_RE)
       const resolved = resolveDate(line, sentAt)
       events.push({
-        title: truncate(cleanLine(line), 60),
+        title: cleanLine(line),
         date: resolved.label,
         dateIso: resolved.iso,
         time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
