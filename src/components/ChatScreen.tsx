@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage, Role, TabId } from '../data'
 import { destinationLabel, type DestinationTag } from '../classify'
 import { HeartIcon, PaperclipIcon } from './icons'
@@ -31,6 +31,12 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
   const [text, setText] = useState('')
   const [photo, setPhoto] = useState<string | undefined>()
   const fileRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages.length])
 
   const submit = () => {
     if (!text.trim() && !photo) return
@@ -56,7 +62,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
         </div>
       )}
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {messages.map((m) => {
           const isTeacher = m.from === 'teacher'
           const shownTags = m.tags.filter((t) => t !== 'general')
@@ -76,7 +82,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                 {m.photoUrl && (
                   <img src={m.photoUrl} alt="" className="mb-2 max-h-48 w-full rounded-xl object-cover" />
                 )}
-                {m.text && <p>{m.text}</p>}
+                {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
               </div>
 
               {isTeacher && shownTags.length > 0 && (
