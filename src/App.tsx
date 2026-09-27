@@ -7,7 +7,8 @@ import BoardTab from './components/BoardTab'
 import AnnouncementsTab from './components/AnnouncementsTab'
 import GalleryTab from './components/GalleryTab'
 import RosterModal from './components/RosterModal'
-import { classifyMessage, destinationLabel } from './classify'
+import { classifyMessage, destinationLabel, type ClassificationResult } from './classify'
+import { classifyWithLLM } from './llmClassify'
 import {
   initialAnnouncements,
   initialAssignments,
@@ -45,18 +46,10 @@ export default function App() {
     toastTimer.current = setTimeout(() => setRoutingToast(null), 3800)
   }
 
-  const sendMessage = (text: string, photoDataUrl?: string) => {
-    const id = `c${Date.now()}`
-    const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-    const { tags, events: newEvents, assignments: newAssignments, announcements: newAnnouncements } = classifyMessage(
-      text,
-      !!photoDataUrl,
-    )
+  const applyClassification = (id: string, text: string, photoDataUrl: string | undefined, result: ClassificationResult) => {
+    const { tags, events: newEvents, assignments: newAssignments, announcements: newAnnouncements } = result
 
-    setMessages((prev) => [
-      ...prev,
-      { id, from: 'teacher', authorName: 'תהילה שם טוב', text, time, likes: 0, readBy: 0, photoUrl: photoDataUrl, tags },
-    ])
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, tags } : m)))
 
     if (newEvents.length > 0) {
       setEvents((prev) => [
@@ -114,6 +107,23 @@ export default function App() {
     }
 
     showToast(`נוסף אוטומטית ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
+  }
+
+  const sendMessage = (text: string, photoDataUrl?: string) => {
+    const id = `c${Date.now()}`
+    const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    const sentAt = new Date()
+
+    setMessages((prev) => [
+      ...prev,
+      { id, from: 'teacher', authorName: 'תהילה שם טוב', text, time, likes: 0, readBy: 0, photoUrl: photoDataUrl, tags: [] },
+    ])
+
+    void (async () => {
+      const llmResult = await classifyWithLLM(text, !!photoDataUrl, sentAt)
+      const result = llmResult ?? classifyMessage(text, !!photoDataUrl, sentAt)
+      applyClassification(id, text, photoDataUrl, result)
+    })()
   }
 
   const likeMessage = (id: string) => {

@@ -58,6 +58,24 @@ function matchesKeyword(line: string, keyword: string | RegExp): boolean {
   return typeof keyword === 'string' ? line.includes(keyword) : keyword.test(line)
 }
 
+// Shared by both the rule-based classifier and the LLM-based one: tags are
+// derived from which arrays actually got entries, plus whether a photo was
+// attached, falling back to "general" (chat-only, no cube) when nothing matched.
+export function finalizeResult(
+  hasPhoto: boolean,
+  events: EventMeta[],
+  assignments: AssignmentMeta[],
+  announcements: AnnouncementMeta[],
+): ClassificationResult {
+  const tags = new Set<DestinationTag>()
+  if (hasPhoto) tags.add('gallery')
+  if (events.length > 0) tags.add('event')
+  if (assignments.length > 0) tags.add('assignment')
+  if (announcements.length > 0) tags.add('announcement')
+  if (tags.size === 0) tags.add('general')
+  return { tags: [...tags], events, assignments, announcements }
+}
+
 // Study-related only: what was taught/learned, homework, tests - goes to לוח המטלות.
 const ASSIGNMENT_KEYWORDS = [
   'שיעורי בית',
@@ -113,7 +131,7 @@ const TIME_RE = /(\d{1,2}):(\d{2})/
 const BULLET_RE = /^[•‣▪●○]\s*/
 const SECTION_START_RE = /^(?:\p{Extended_Pictographic}|\d+[.)])/u
 
-function eventIcon(text: string): string {
+export function eventIcon(text: string): string {
   if (text.includes('טיול')) return '🚌'
   if (text.includes('מסיבה')) return '🎉'
   if (text.includes('אסיפה')) return '🗣️'
@@ -125,11 +143,11 @@ function eventIcon(text: string): string {
   return '📌'
 }
 
-function extractSubject(text: string): { label: string; icon: string } | undefined {
+export function extractSubject(text: string): { label: string; icon: string } | undefined {
   return SUBJECT_PATTERNS.find((s) => s.names.some((n) => text.includes(n)))
 }
 
-function assignmentIcon(text: string): string {
+export function assignmentIcon(text: string): string {
   const subject = extractSubject(text)
   if (subject) return subject.icon
   if (text.includes('מבחן') || text.includes('בוחן')) return '✏️'
@@ -138,7 +156,7 @@ function assignmentIcon(text: string): string {
   return '📓'
 }
 
-function announcementIcon(text: string): string {
+export function announcementIcon(text: string): string {
   if (text.includes('תלבושת')) return '👕'
   if (text.includes('שכפ') || text.includes('ציוד') || text.includes('בקבוק מים')) return '🎒'
   if (text.includes('טופס') || text.includes('לחתום')) return '✍️'
@@ -146,7 +164,7 @@ function announcementIcon(text: string): string {
   return '📌'
 }
 
-interface ResolvedDate {
+export interface ResolvedDate {
   label: string
   weekday?: string
   iso?: string
@@ -168,7 +186,7 @@ function explicitDateObj(day: number, month: number, now: Date): Date {
 
 // Turns relative day words into a real calendar date (based on when the message was sent),
 // since assignments/events need an actual date, not just "today"/"tomorrow".
-function resolveDate(text: string, now: Date): ResolvedDate {
+export function resolveDate(text: string, now: Date): ResolvedDate {
   const dateMatch = text.match(DATE_RE)
   if (dateMatch) return withDate(explicitDateObj(parseInt(dateMatch[1], 10), parseInt(dateMatch[2], 10), now))
   if (text.includes('מחרתיים')) return withDate(shiftDay(now, 2))
@@ -180,12 +198,12 @@ function resolveDate(text: string, now: Date): ResolvedDate {
   return { label: 'בקרוב' }
 }
 
-function truncate(text: string, max: number): string {
+export function truncate(text: string, max: number): string {
   if (text.length <= max) return text
   return `${text.slice(0, max).trim()}…`
 }
 
-function cleanLine(line: string): string {
+export function cleanLine(line: string): string {
   return line.replace(BULLET_RE, '').replace(/\*/g, '').trim()
 }
 
@@ -197,9 +215,6 @@ function cleanLine(line: string): string {
 // subject instead of a single blended card (or, worse, losing the bullets
 // entirely because no single bullet contains a homework keyword on its own).
 export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = new Date()): ClassificationResult {
-  const tags = new Set<DestinationTag>()
-  if (hasPhoto) tags.add('gallery')
-
   const events: EventMeta[] = []
   const assignments: AssignmentMeta[] = []
   const announcements: AnnouncementMeta[] = []
@@ -212,10 +227,11 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
   const flushBuffer = () => {
     if (buffer.length === 0) return
     const combined = buffer.join(' · ')
+    const subjectFallback = currentSubject ?? extractSubject(combined)
     assignments.push({
-      subject: currentSubject?.label,
+      subject: subjectFallback?.label,
       text: truncate(combined, 200),
-      icon: currentSubject?.icon ?? assignmentIcon(combined),
+      icon: subjectFallback?.icon ?? assignmentIcon(combined),
       dateLabel: bufferDate?.label ?? 'בקרוב',
       dateIso: bufferDate?.iso,
       weekday: bufferDate?.weekday,
@@ -241,7 +257,6 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     )
     if (matchedEventGroup) {
       usedEventGroups.add(matchedEventGroup)
-      tags.add('event')
       const timeMatch = line.match(TIME_RE)
       const resolved = resolveDate(line, sentAt)
       events.push({
@@ -255,7 +270,6 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     }
 
     if (ANNOUNCEMENT_KEYWORDS.some((k) => line.includes(k))) {
-      tags.add('announcement')
       announcements.push({
         text: cleanLine(line),
         icon: announcementIcon(line),
@@ -264,7 +278,6 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     }
 
     if (BULLET_RE.test(line) || ASSIGNMENT_KEYWORDS.some((k) => line.includes(k))) {
-      tags.add('assignment')
       buffer.push(cleanLine(line))
       const resolved = resolveDate(line, sentAt)
       if (resolved.iso) bufferDate = resolved
@@ -273,9 +286,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
 
   flushBuffer()
 
-  if (tags.size === 0) tags.add('general')
-
-  return { tags: [...tags], events, assignments, announcements }
+  return finalizeResult(hasPhoto, events, assignments, announcements)
 }
 
 export const destinationLabel: Record<DestinationTag, string> = {
