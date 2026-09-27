@@ -28,9 +28,9 @@ export interface AnnouncementMeta {
 
 export interface ClassificationResult {
   tags: DestinationTag[]
-  eventMeta?: EventMeta
-  assignmentMeta?: AssignmentMeta
-  announcementMeta?: AnnouncementMeta
+  events: EventMeta[]
+  assignments: AssignmentMeta[]
+  announcements: AnnouncementMeta[]
 }
 
 const EVENT_KEYWORDS = [
@@ -169,58 +169,75 @@ function truncate(text: string, max: number): string {
   return `${firstLine.slice(0, max).trim()}…`
 }
 
+// A teacher message often mixes several unrelated topics (an event, a homework
+// note, a reminder) in one go - split it into per-line/per-sentence segments so
+// each topic can be classified and routed on its own, instead of the whole
+// message being dumped into every matching category at once. The lookahead
+// keeps a decimal-looking date like "1.10" from being split mid-number.
+function splitSegments(text: string): string[] {
+  return text
+    .split('\n')
+    .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[^\d]|$)/))
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = new Date()): ClassificationResult {
-  const tags: DestinationTag[] = []
-  if (hasPhoto) tags.push('gallery')
+  const tags = new Set<DestinationTag>()
+  if (hasPhoto) tags.add('gallery')
 
-  const isEvent = EVENT_KEYWORDS.some((k) => text.includes(k)) || DATE_RE.test(text)
-  const isAssignment = ASSIGNMENT_KEYWORDS.some((k) => text.includes(k))
-  const isAnnouncement = ANNOUNCEMENT_KEYWORDS.some((k) => text.includes(k))
+  const events: EventMeta[] = []
+  const assignments: AssignmentMeta[] = []
+  const announcements: AnnouncementMeta[] = []
 
-  let eventMeta: EventMeta | undefined
-  let assignmentMeta: AssignmentMeta | undefined
-  let announcementMeta: AnnouncementMeta | undefined
+  const segments = splitSegments(text)
 
-  if (isEvent) {
-    tags.push('event')
-    const timeMatch = text.match(TIME_RE)
-    const resolved = resolveDate(text, sentAt)
-    eventMeta = {
-      title: truncate(text, 42),
-      date: resolved.label,
-      dateIso: resolved.iso,
-      time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
-      icon: eventIcon(text),
-      location: 'בית הספר',
+  for (const segment of segments) {
+    const isEvent = EVENT_KEYWORDS.some((k) => segment.includes(k)) || DATE_RE.test(segment)
+    const isAssignment = ASSIGNMENT_KEYWORDS.some((k) => segment.includes(k))
+    const isAnnouncement = ANNOUNCEMENT_KEYWORDS.some((k) => segment.includes(k))
+
+    if (isEvent) {
+      tags.add('event')
+      const timeMatch = segment.match(TIME_RE)
+      const resolved = resolveDate(segment, sentAt)
+      events.push({
+        title: truncate(segment, 42),
+        date: resolved.label,
+        dateIso: resolved.iso,
+        time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : undefined,
+        icon: eventIcon(segment),
+        location: 'בית הספר',
+      })
+    }
+
+    if (isAssignment) {
+      tags.add('assignment')
+      const subject = extractSubject(segment)
+      const resolved = resolveDate(segment, sentAt)
+      assignments.push({
+        subject: subject?.label,
+        text: truncate(segment, 70),
+        icon: assignmentIcon(segment),
+        dateLabel: resolved.label,
+        dateIso: resolved.iso,
+        weekday: resolved.weekday,
+      })
+    }
+
+    if (isAnnouncement) {
+      tags.add('announcement')
+      announcements.push({
+        text: truncate(segment, 60),
+        icon: announcementIcon(segment),
+        dateLabel: resolveDate(segment, sentAt).label,
+      })
     }
   }
 
-  if (isAssignment) {
-    tags.push('assignment')
-    const subject = extractSubject(text)
-    const resolved = resolveDate(text, sentAt)
-    assignmentMeta = {
-      subject: subject?.label,
-      text: truncate(text, 70),
-      icon: assignmentIcon(text),
-      dateLabel: resolved.label,
-      dateIso: resolved.iso,
-      weekday: resolved.weekday,
-    }
-  }
+  if (tags.size === 0) tags.add('general')
 
-  if (isAnnouncement) {
-    tags.push('announcement')
-    announcementMeta = {
-      text: truncate(text, 60),
-      icon: announcementIcon(text),
-      dateLabel: resolveDate(text, sentAt).label,
-    }
-  }
-
-  if (!isEvent && !isAssignment && !isAnnouncement) tags.push('general')
-
-  return { tags, eventMeta, assignmentMeta, announcementMeta }
+  return { tags: [...tags], events, assignments, announcements }
 }
 
 export const destinationLabel: Record<DestinationTag, string> = {

@@ -1,25 +1,45 @@
-import { classInfo, type Role } from '../data'
+import { classInfo, type Role, type TabId } from '../data'
 
 interface Props {
   role: Role
   onRoleChange: (role: Role) => void
   studentsCount: number
   onOpenRoster: () => void
+  tab: TabId
+  onOpenMenu: () => void
+  onBack: () => void
 }
 
-export default function Header({ role, onRoleChange, studentsCount, onOpenRoster }: Props) {
+const sectionTitles: Partial<Record<TabId, string>> = {
+  announcements: 'הודעות',
+  board: 'מטלות',
+  calendar: 'יומן',
+  gallery: 'גלריה',
+}
+
+export default function Header({ role, onRoleChange, studentsCount, onOpenRoster, tab, onOpenMenu, onBack }: Props) {
+  const isHome = tab === 'home'
+  const sectionTitle = sectionTitles[tab]
+
   return (
     <header className="shrink-0 border-b border-slate-200 bg-white/90 px-4 pb-2.5 pt-3 backdrop-blur">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-brand-600 text-sm font-bold text-white shadow-sm shadow-brand-200">
-            {classInfo.teacherInitials}
-          </div>
+          <button
+            type="button"
+            onClick={isHome ? onOpenMenu : onBack}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-lg text-slate-600 transition hover:bg-slate-200"
+            aria-label={isHome ? 'תפריט' : 'חזרה לצ׳אט'}
+          >
+            {isHome ? '☰' : '→'}
+          </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight text-slate-900">
-              כיתה {classInfo.className} · {classInfo.teacherName}
+              {sectionTitle ? sectionTitle : `כיתה ${classInfo.className} · ${classInfo.teacherName}`}
             </p>
-            <p className="truncate text-[11px] leading-tight text-slate-500">{classInfo.schoolName}</p>
+            <p className="truncate text-[11px] leading-tight text-slate-500">
+              {sectionTitle ? `כיתה ${classInfo.className}` : classInfo.schoolName}
+            </p>
           </div>
         </div>
 

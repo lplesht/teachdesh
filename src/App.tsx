@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import Header from './components/Header'
-import BottomNav from './components/BottomNav'
+import NavDrawer from './components/NavDrawer'
 import ChatScreen from './components/ChatScreen'
 import CalendarTab from './components/CalendarTab'
 import BoardTab from './components/BoardTab'
@@ -27,6 +27,7 @@ import {
 export default function App() {
   const [role, setRole] = useState<Role>('parent')
   const [tab, setTab] = useState<TabId>('home')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [students, setStudents] = useState<string[]>(initialStudents)
   const [rosterOpen, setRosterOpen] = useState(false)
 
@@ -48,17 +49,20 @@ export default function App() {
   const sendMessage = (text: string, photoDataUrl?: string) => {
     const id = `c${Date.now()}`
     const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
-    const { tags, eventMeta, assignmentMeta, announcementMeta } = classifyMessage(text, !!photoDataUrl)
+    const { tags, events: newEvents, assignments: newAssignments, announcements: newAnnouncements } = classifyMessage(
+      text,
+      !!photoDataUrl,
+    )
 
     setMessages((prev) => [
       ...prev,
       { id, from: 'teacher', authorName: 'תהילה שם טוב', text, time, likes: 0, readBy: 0, photoUrl: photoDataUrl, tags },
     ])
 
-    if (eventMeta) {
+    if (newEvents.length > 0) {
       setEvents((prev) => [
-        {
-          id: `e${Date.now()}`,
+        ...newEvents.map((eventMeta, i) => ({
+          id: `e${Date.now()}_${i}`,
           title: eventMeta.title,
           date: eventMeta.date,
           dateIso: eventMeta.dateIso,
@@ -69,15 +73,15 @@ export default function App() {
           rsvpNo: 0,
           myRsvp: null,
           sourceMessageId: id,
-        },
+        })),
         ...prev,
       ])
     }
 
-    if (assignmentMeta) {
+    if (newAssignments.length > 0) {
       setAssignments((prev) => [
-        {
-          id: `a${Date.now()}`,
+        ...newAssignments.map((assignmentMeta, i) => ({
+          id: `a${Date.now()}_${i}`,
           subject: assignmentMeta.subject,
           text: assignmentMeta.text,
           icon: assignmentMeta.icon,
@@ -85,14 +89,20 @@ export default function App() {
           dateIso: assignmentMeta.dateIso,
           weekday: assignmentMeta.weekday,
           sourceMessageId: id,
-        },
+        })),
         ...prev,
       ])
     }
 
-    if (announcementMeta) {
+    if (newAnnouncements.length > 0) {
       setAnnouncements((prev) => [
-        { id: `n${Date.now()}`, text: announcementMeta.text, icon: announcementMeta.icon, dateLabel: announcementMeta.dateLabel, sourceMessageId: id },
+        ...newAnnouncements.map((announcementMeta, i) => ({
+          id: `n${Date.now()}_${i}`,
+          text: announcementMeta.text,
+          icon: announcementMeta.icon,
+          dateLabel: announcementMeta.dateLabel,
+          sourceMessageId: id,
+        })),
         ...prev,
       ])
     }
@@ -127,8 +137,16 @@ export default function App() {
 
   return (
     <div className="min-h-dvh bg-slate-200 sm:flex sm:items-center sm:justify-center sm:p-8">
-      <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f6fb] sm:h-[860px] sm:rounded-[2.5rem] sm:shadow-2xl sm:ring-8 sm:ring-slate-900/90">
-        <Header role={role} onRoleChange={setRole} studentsCount={students.length} onOpenRoster={() => setRosterOpen(true)} />
+      <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f6fb] sm:h-[860px] sm:rounded-[2.5rem] sm:shadow-2xl sm:ring-8 sm:ring-slate-900/90">
+        <Header
+          role={role}
+          onRoleChange={setRole}
+          studentsCount={students.length}
+          onOpenRoster={() => setRosterOpen(true)}
+          tab={tab}
+          onOpenMenu={() => setMenuOpen(true)}
+          onBack={() => setTab('home')}
+        />
 
         <main className="min-h-0 flex-1">
           {tab === 'home' && (
@@ -140,9 +158,10 @@ export default function App() {
           {tab === 'gallery' && <GalleryTab photos={photos} />}
         </main>
 
-        <BottomNav
-          active={tab}
-          onChange={setTab}
+        <NavDrawer
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onNavigate={setTab}
           badges={{
             calendar: events.length || undefined,
             board: assignments.length || undefined,
