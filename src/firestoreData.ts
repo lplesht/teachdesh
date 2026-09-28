@@ -3,12 +3,15 @@ import {
   addDoc,
   collection,
   doc,
+  getDocs,
   increment,
   onSnapshot,
   orderBy,
   query,
   setDoc,
   updateDoc,
+  where,
+  writeBatch,
   type DocumentData,
 } from 'firebase/firestore'
 import { CLASS_ID, db, ensureSignedIn } from './firebase'
@@ -217,6 +220,26 @@ export async function updateMessageTags(id: string, tags: DestinationTag[]): Pro
 export async function likeMessageDoc(id: string): Promise<void> {
   await ensureSignedIn()
   await updateDoc(classDoc('messages', id), { likes: increment(1) })
+}
+
+// Deletes the message plus everything it was routed to (events, assignments,
+// announcements, photos) - a teacher retracting a message shouldn't leave
+// orphaned cards behind on the other tabs.
+const DERIVED_COLLECTIONS = ['events', 'assignments', 'announcements', 'photos']
+
+export async function deleteMessageDoc(id: string): Promise<void> {
+  await ensureSignedIn()
+
+  const derivedSnaps = await Promise.all(
+    DERIVED_COLLECTIONS.map((name) => getDocs(query(classCollection(name), where('sourceMessageId', '==', id)))),
+  )
+
+  const batch = writeBatch(db!)
+  for (const snap of derivedSnaps) {
+    for (const d of snap.docs) batch.delete(d.ref)
+  }
+  batch.delete(classDoc('messages', id))
+  await batch.commit()
 }
 
 export async function addEventDoc(meta: EventMeta, sourceMessageId: string): Promise<void> {

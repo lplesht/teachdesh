@@ -14,6 +14,7 @@ import {
   addAnnouncementDoc,
   addAssignmentDoc,
   addEventDoc,
+  deleteMessageDoc,
   likeMessageDoc,
   rsvpEventDoc,
   sendMessageDoc,
@@ -91,6 +92,11 @@ export default function App() {
     void likeMessageDoc(id)
   }
 
+  const deleteMessage = (id: string) => {
+    if (!window.confirm('למחוק את ההודעה? היא תוסר גם מכל הלוחות שאליהם נותבה (מטלות/יומן/הודעות/גלריה).')) return
+    void deleteMessageDoc(id)
+  }
+
   const rsvpEvent = (id: string, answer: 'yes' | 'no') => {
     void rsvpEventDoc(id, answer)
   }
@@ -104,7 +110,15 @@ export default function App() {
 
         <main className="min-h-0 flex-1">
           {tab === 'home' && (
-            <ChatScreen messages={messages} role={role} routingToast={routingToast} onSend={sendMessage} onLike={likeMessage} onNavigate={setTab} />
+            <ChatScreen
+              messages={messages}
+              role={role}
+              routingToast={routingToast}
+              onSend={sendMessage}
+              onLike={likeMessage}
+              onDelete={deleteMessage}
+              onNavigate={setTab}
+            />
           )}
           {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
           {tab === 'board' && <BoardTab assignments={assignments} />}

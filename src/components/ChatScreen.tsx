@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage, Role, TabId } from '../data'
 import { destinationLabel, type DestinationTag } from '../classify'
-import { HeartIcon } from './icons'
+import { HeartIcon, TrashIcon } from './icons'
 
 interface Props {
   messages: ChatMessage[]
@@ -9,6 +9,7 @@ interface Props {
   routingToast: string | null
   onSend: (text: string) => void
   onLike: (id: string) => void
+  onDelete: (id: string) => void
   onNavigate: (tab: TabId) => void
 }
 
@@ -27,7 +28,7 @@ const tagDestination: Partial<Record<DestinationTag, TabId>> = {
   gallery: 'gallery',
 }
 
-export default function ChatScreen({ messages, role, routingToast, onSend, onLike, onNavigate }: Props) {
+export default function ChatScreen({ messages, role, routingToast, onSend, onLike, onDelete, onNavigate }: Props) {
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -99,6 +100,16 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                   {m.likes}
                 </button>
                 {isTeacher && m.readBy > 0 && <span>נקרא ע"י {m.readBy} הורים</span>}
+                {role === 'teacher' && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(m.id)}
+                    className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
+                    aria-label="מחקי הודעה"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           )
