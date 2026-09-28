@@ -27,7 +27,7 @@ interface LLMSegment {
 }
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
-const MODEL = 'gemini-2.0-flash'
+const MODEL = 'gemini-2.5-flash'
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
 
 const PROMPT = `זהו החלק הכי חשוב במערכת הזו - הניתוב הזה הוא הלב של האפליקציה, וההורים סומכים עליו כדי לא לפספס אף מטלה. תעבדי לאט, בקפידה, ותקראי את ההודעה *כולה* מתחילתה ועד סופה לפני שאת מחליטה משהו.
