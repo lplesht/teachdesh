@@ -58,14 +58,14 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
           return (
             <div key={m.id} className={`flex flex-col ${isTeacher ? 'items-start' : 'items-end'}`}>
               <div
-                className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                  isTeacher ? 'rounded-ss-sm bg-brand-50 text-slate-800' : 'rounded-se-sm bg-slate-100 text-slate-800'
+                className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
+                  isTeacher ? 'rounded-ss-sm bg-leaf-100 text-slate-800' : 'rounded-se-sm border border-slate-100 bg-white text-slate-800'
                 }`}
               >
-                <p className="mb-0.5 flex items-center gap-1.5 text-[11px] font-bold text-brand-700">
+                <p className={`mb-0.5 flex items-center gap-1.5 text-[11px] font-bold ${isTeacher ? 'text-leaf-600' : 'text-brand-700'}`}>
                   {m.authorName}
                   {isTeacher && (
-                    <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[9px] font-bold text-white">מורה</span>
+                    <span className="rounded-full bg-leaf-500 px-1.5 py-0.5 text-[9px] font-bold text-white">מורה</span>
                   )}
                 </p>
                 {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
