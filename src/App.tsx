@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import ChatScreen from './components/ChatScreen'
@@ -31,6 +31,28 @@ import type { Role, TabId } from './data'
 
 const TEACHER_NAME = 'תהילה שם טוב'
 
+// Which tabs show an unread-count badge, and how many of their items are
+// newer than the last time this viewer (per browser, via localStorage - no
+// real per-parent accounts yet) actually opened that tab.
+type BadgedTab = 'calendar' | 'board' | 'announcements'
+const BADGED_TABS: BadgedTab[] = ['calendar', 'board', 'announcements']
+
+function getSeenTs(tab: BadgedTab): number {
+  try {
+    return Number(localStorage.getItem(`teachdesh_seen_${tab}`)) || 0
+  } catch {
+    return 0
+  }
+}
+
+function setSeenTs(tab: BadgedTab, ts: number): void {
+  try {
+    localStorage.setItem(`teachdesh_seen_${tab}`, String(ts))
+  } catch {
+    // ignore - private browsing etc.
+  }
+}
+
 function FirebaseSetupNotice() {
   return (
     <div className="grid min-h-dvh place-items-center bg-slate-100 p-6 text-center" dir="rtl">
@@ -56,6 +78,24 @@ export default function App() {
   const assignments = useAssignments()
   const announcements = useAnnouncements()
   const photos = usePhotos()
+
+  const [seenTs, setSeenTsState] = useState<Record<BadgedTab, number>>(() => ({
+    calendar: getSeenTs('calendar'),
+    board: getSeenTs('board'),
+    announcements: getSeenTs('announcements'),
+  }))
+
+  // Marks the active badged tab as seen-through-now - runs on every tab
+  // switch, and again if its data changes while already open, so new
+  // items that arrive while you're looking at the tab don't leave a stale
+  // badge behind next time you come back.
+  useEffect(() => {
+    if (!BADGED_TABS.includes(tab as BadgedTab)) return
+    const t = tab as BadgedTab
+    const now = Date.now()
+    setSeenTs(t, now)
+    setSeenTsState((prev) => ({ ...prev, [t]: now }))
+  }, [tab, events, assignments, announcements])
 
   const [routingToast, setRoutingToast] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -131,9 +171,9 @@ export default function App() {
           active={tab}
           onChange={setTab}
           badges={{
-            calendar: events.length || undefined,
-            board: assignments.length || undefined,
-            announcements: announcements.length || undefined,
+            calendar: events.filter((e) => e.ts > seenTs.calendar).length || undefined,
+            board: assignments.filter((a) => a.ts > seenTs.board).length || undefined,
+            announcements: announcements.filter((a) => a.ts > seenTs.announcements).length || undefined,
           }}
         />
       </div>

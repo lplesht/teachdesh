@@ -34,6 +34,7 @@ export interface EventCard {
   rsvpNo: number
   myRsvp: 'yes' | 'no' | null
   sourceMessageId?: string
+  ts: number
 }
 
 export interface AssignmentCard {
@@ -164,6 +165,7 @@ export const initialEvents: EventCard[] = [
     rsvpNo: 0,
     myRsvp: null,
     sourceMessageId: 'c1',
+    ts: new Date('2026-09-20T18:42:00').getTime(),
   },
   {
     id: 'e2',
@@ -176,6 +178,7 @@ export const initialEvents: EventCard[] = [
     rsvpNo: 1,
     myRsvp: 'yes',
     sourceMessageId: 'c4',
+    ts: new Date('2026-09-21T09:12:00').getTime(),
   },
   {
     id: 'e3',
@@ -188,6 +191,7 @@ export const initialEvents: EventCard[] = [
     rsvpYes: 18,
     rsvpNo: 2,
     myRsvp: null,
+    ts: new Date('2026-09-18T08:00:00').getTime(),
   },
 ]
 

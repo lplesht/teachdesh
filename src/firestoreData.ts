@@ -91,6 +91,7 @@ export function useEvents(): EventCard[] {
             rsvpNo: data.rsvpNo ?? 0,
             myRsvp: getLocalRsvp(d.id),
             sourceMessageId: data.sourceMessageId ?? undefined,
+            ts: data.ts ?? 0,
           }
         }),
       )
