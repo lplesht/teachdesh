@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage, Role, TabId } from '../data'
 import { destinationLabel, type DestinationTag } from '../classify'
-import { HeartIcon, PaperclipIcon } from './icons'
+import { HeartIcon } from './icons'
 
 interface Props {
   messages: ChatMessage[]
   role: Role
   routingToast: string | null
-  onSend: (text: string, photoDataUrl?: string) => void
+  onSend: (text: string) => void
   onLike: (id: string) => void
   onNavigate: (tab: TabId) => void
 }
@@ -29,8 +29,6 @@ const tagDestination: Partial<Record<DestinationTag, TabId>> = {
 
 export default function ChatScreen({ messages, role, routingToast, onSend, onLike, onNavigate }: Props) {
   const [text, setText] = useState('')
-  const [photo, setPhoto] = useState<string | undefined>()
-  const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -39,19 +37,9 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
   }, [messages.length])
 
   const submit = () => {
-    if (!text.trim() && !photo) return
-    onSend(text.trim(), photo)
+    if (!text.trim()) return
+    onSend(text.trim())
     setText('')
-    setPhoto(undefined)
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setPhoto(reader.result as string)
-    reader.readAsDataURL(file)
   }
 
   return (
@@ -79,9 +67,6 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                     <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[9px] font-bold text-white">מורה</span>
                   )}
                 </p>
-                {m.photoUrl && (
-                  <img src={m.photoUrl} alt="" className="mb-2 max-h-48 w-full rounded-xl object-cover" />
-                )}
                 {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
               </div>
 
@@ -123,28 +108,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
       <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-2.5">
         {role === 'teacher' ? (
           <>
-            {photo && (
-              <div className="relative mb-2 inline-block">
-                <img src={photo} alt="" className="h-16 w-16 rounded-xl object-cover" />
-                <button
-                  type="button"
-                  onClick={() => setPhoto(undefined)}
-                  className="absolute -top-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-slate-900 text-[10px] text-white"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
-                aria-label="צרף תמונה"
-              >
-                <PaperclipIcon className="h-[18px] w-[18px]" />
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -161,7 +125,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               <button
                 type="button"
                 onClick={submit}
-                disabled={!text.trim() && !photo}
+                disabled={!text.trim()}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200"
                 aria-label="שלח"
               >
@@ -171,7 +135,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               </button>
             </div>
             <p className="mt-1.5 px-1 text-[10px] text-slate-400">
-              המערכת מסווגת אוטומטית אירועים, מטלות, הודעות ותמונות ללוחות המתאימים · Enter לשורה חדשה, Ctrl+Enter לשליחה
+              המערכת מסווגת אוטומטית אירועים, מטלות והודעות ללוחות המתאימים · Enter לשורה חדשה, Ctrl+Enter לשליחה
             </p>
           </>
         ) : (
