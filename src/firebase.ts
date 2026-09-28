@@ -3,17 +3,20 @@ import { getAuth, onAuthStateChanged, signInAnonymously, type Auth } from 'fireb
 import { getFirestore, type Firestore } from 'firebase/firestore'
 import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
+// Firebase's web config isn't a secret (it only identifies the project;
+// real security comes from firestore.rules/storage.rules) - safe to embed
+// directly, with env vars able to override it for local dev if needed.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyBETN0Ym4ZY7PznVjIvJ8pOMyYr0bAxuYo',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'teachdash-6b39d.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'teachdash-6b39d',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'teachdash-6b39d.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '500972301497',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:500972301497:web:22b90307ae6bff97403f68',
 }
 
-// True only once real project config has been baked in at build time - lets
-// the app show a clear setup notice instead of crashing when it hasn't.
+// True once project config is available - lets the app show a clear setup
+// notice instead of crashing if it's ever missing.
 export const firebaseReady = !!firebaseConfig.apiKey
 
 let app: FirebaseApp | undefined
