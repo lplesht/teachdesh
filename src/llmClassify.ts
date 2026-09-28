@@ -194,6 +194,30 @@ export interface LLMClassifyOutcome {
 // bad response, or a response that yields nothing usable) so the caller
 // falls back to the rule-based classifyMessage instead of showing a broken
 // result - failReason says which of those it was.
+//
+// The free-tier flash model occasionally answers with a transient 503
+// ("currently experiencing high demand") or 429 (rate limit) - those are
+// worth a couple of quick retries before giving up on the real thing and
+// falling back to rules, unlike a 404 (wrong model) or 400 (bad request),
+// which won't fix themselves by asking again.
+const RETRYABLE_STATUSES = new Set([429, 500, 503])
+const MAX_ATTEMPTS = 3
+
+async function fetchOnce(lines: string[]): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000)
+  try {
+    return await fetch(`${ENDPOINT}?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify(buildRequestBody(lines)),
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: Date = new Date()): Promise<LLMClassifyOutcome> {
   if (!API_KEY) return { result: null, failReason: 'אין מפתח API' }
 
@@ -201,16 +225,12 @@ export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: D
   if (lines.length === 0) return { result: null, failReason: 'הודעה ריקה' }
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10_000)
-
-    const res = await fetch(`${ENDPOINT}?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify(buildRequestBody(lines)),
-    })
-    clearTimeout(timeout)
+    let res = await fetchOnce(lines)
+    for (let attempt = 1; !res.ok && RETRYABLE_STATUSES.has(res.status) && attempt < MAX_ATTEMPTS; attempt++) {
+      console.warn(`Gemini classification got HTTP ${res.status}, retrying (attempt ${attempt + 1}/${MAX_ATTEMPTS})`)
+      await new Promise((r) => setTimeout(r, 700 * attempt))
+      res = await fetchOnce(lines)
+    }
     if (!res.ok) {
       const bodyText = await res.text().catch(() => '')
       console.warn('Gemini classification request failed', res.status, bodyText)
