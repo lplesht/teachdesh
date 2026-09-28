@@ -176,16 +176,25 @@ function buildMetasFromSegments(segments: LLMSegment[], lines: string[], sentAt:
   return { events, assignments, announcements }
 }
 
+export interface LLMClassifyOutcome {
+  result: ClassificationResult | null
+  // Set whenever result is null, so the caller can surface *why* it fell
+  // back to the rule-based engine - important since the teacher testing this
+  // on her phone has no way to open devtools and read the console herself.
+  failReason?: string
+}
+
 // Tries an LLM-based classification (free-tier Gemini) for better handling of
 // long, multi-topic real-world messages than the regex/keyword classifier can
-// manage. Returns null on any failure (missing key, network error, bad
-// response, or a response that yields nothing usable) so the caller falls
-// back to the rule-based classifyMessage instead of showing a broken result.
-export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: Date = new Date()): Promise<ClassificationResult | null> {
-  if (!API_KEY) return null
+// manage. Returns result: null on any failure (missing key, network error,
+// bad response, or a response that yields nothing usable) so the caller
+// falls back to the rule-based classifyMessage instead of showing a broken
+// result - failReason says which of those it was.
+export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: Date = new Date()): Promise<LLMClassifyOutcome> {
+  if (!API_KEY) return { result: null, failReason: 'אין מפתח API' }
 
   const lines = splitLines(text)
-  if (lines.length === 0) return null
+  if (lines.length === 0) return { result: null, failReason: 'הודעה ריקה' }
 
   try {
     const controller = new AbortController()
@@ -199,16 +208,26 @@ export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: D
     })
     clearTimeout(timeout)
     if (!res.ok) {
-      console.warn('Gemini classification request failed', res.status, await res.text().catch(() => ''))
-      return null
+      const bodyText = await res.text().catch(() => '')
+      console.warn('Gemini classification request failed', res.status, bodyText)
+      return { result: null, failReason: `HTTP ${res.status}${bodyText ? ` - ${bodyText.slice(0, 120)}` : ''}` }
     }
 
     const data = await res.json()
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text
-    if (typeof raw !== 'string') return null
+    if (typeof raw !== 'string') {
+      console.warn('Gemini response had no text part', data)
+      return { result: null, failReason: 'תשובה ללא טקסט' }
+    }
 
-    const parsed = extractJsonArray(raw)
-    if (!Array.isArray(parsed)) return null
+    let parsed: unknown
+    try {
+      parsed = extractJsonArray(raw)
+    } catch (err) {
+      console.warn('Gemini response was not valid JSON', raw, err)
+      return { result: null, failReason: 'תשובה לא תקינה (JSON)' }
+    }
+    if (!Array.isArray(parsed)) return { result: null, failReason: 'תשובה לא תקינה (לא מערך)' }
 
     const segments = parsed.filter((s): s is LLMSegment => isValidSegment(s, lines.length))
     const { events, assignments, announcements } = buildMetasFromSegments(segments, lines, sentAt)
@@ -218,13 +237,14 @@ export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: D
       // parsing/prompt miss than a genuine "nothing to categorize" - prefer
       // the deterministic fallback over showing an empty result.
       console.warn('Gemini returned nothing usable, falling back', segments)
-      return null
+      return { result: null, failReason: 'לא הוחזר תוכן שמיש' }
     }
 
     console.info('Gemini classification used', { segments })
-    return finalizeResult(hasPhoto, events, assignments, announcements, 'gemini')
+    return { result: finalizeResult(hasPhoto, events, assignments, announcements, 'gemini') }
   } catch (err) {
     console.warn('Gemini classification failed, falling back', err)
-    return null
+    const isAbort = err instanceof Error && err.name === 'AbortError'
+    return { result: null, failReason: isAbort ? 'תם הזמן (timeout)' : `שגיאת רשת: ${String(err)}`.slice(0, 140) }
   }
 }

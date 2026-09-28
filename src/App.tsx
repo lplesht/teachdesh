@@ -73,8 +73,8 @@ export default function App() {
     void (async () => {
       const { id } = await sendMessageDoc('teacher', TEACHER_NAME, text, time)
 
-      const llmResult = await classifyWithLLM(text, false, sentAt)
-      const result = llmResult ?? classifyMessage(text, false, sentAt)
+      const llmOutcome = await classifyWithLLM(text, false, sentAt)
+      const result = llmOutcome.result ?? classifyMessage(text, false, sentAt)
 
       await updateMessageTags(id, result.tags)
       await Promise.all([
@@ -83,7 +83,8 @@ export default function App() {
         ...result.announcements.map((a) => addAnnouncementDoc(a, id)),
       ])
 
-      const engineLabel = result.engine === 'gemini' ? '🤖 Gemini' : '📋 חוקים'
+      const engineLabel =
+        result.engine === 'gemini' ? '🤖 Gemini' : `📋 חוקים (Gemini נכשל: ${llmOutcome.failReason ?? 'לא ידוע'})`
       showToast(`${engineLabel} · נוסף אוטומטית ל: ${result.tags.map((t) => destinationLabel[t]).join(' + ')}`)
     })()
   }
