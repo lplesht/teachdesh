@@ -24,6 +24,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Debug - check secrets are wired (temporary, values never printed)
+        run: |
+          echo "GEMINI_API_KEY set: ${{ secrets.GEMINI_API_KEY != '' }}"
+          echo "FIREBASE_API_KEY set: ${{ secrets.FIREBASE_API_KEY != '' }}"
       - run: npm run build
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
