@@ -1,11 +1,10 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, onAuthStateChanged, signInAnonymously, type Auth } from 'firebase/auth'
 import { getFirestore, type Firestore } from 'firebase/firestore'
-import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
 // Firebase's web config isn't a secret (it only identifies the project;
-// real security comes from firestore.rules/storage.rules) - safe to embed
-// directly, with env vars able to override it for local dev if needed.
+// real security comes from firestore.rules) - safe to embed directly, with
+// env vars able to override it for local dev if needed.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyBETN0Ym4ZY7PznVjIvJ8pOMyYr0bAxuYo',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'teachdash-6b39d.firebaseapp.com',
@@ -21,17 +20,15 @@ export const firebaseReady = !!firebaseConfig.apiKey
 
 let app: FirebaseApp | undefined
 let db: Firestore | undefined
-let storage: FirebaseStorage | undefined
 let auth: Auth | undefined
 
 if (firebaseReady) {
   app = initializeApp(firebaseConfig)
   db = getFirestore(app)
-  storage = getStorage(app)
   auth = getAuth(app)
 }
 
-export { db, storage, auth }
+export { db, auth }
 
 // Single fixed class for now - no multi-class picker or real login yet.
 export const CLASS_ID = 'g4'
@@ -39,7 +36,7 @@ export const CLASS_ID = 'g4'
 let signInPromise: Promise<void> | null = null
 
 // No login UI yet - every visitor (teacher or parent) is signed in anonymously
-// so Firestore/Storage rules can at least require request.auth != null.
+// so Firestore rules can at least require request.auth != null.
 // Real per-role accounts are a follow-up phase.
 export function ensureSignedIn(): Promise<void> {
   if (!auth) return Promise.resolve()
