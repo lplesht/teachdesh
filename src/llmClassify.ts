@@ -31,7 +31,10 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
 // "gemini-2.5-flash" - Google has been sunsetting specific stable
 // snapshots for new API keys while keeping these aliases pointed at
 // whatever's current, so this is less likely to 404 again later.
-const MODEL = 'gemini-flash-latest'
+// The "lite" variant specifically: the full "gemini-flash-latest" pool was
+// persistently overloaded (503 "high demand") even after retries, and this
+// line-classification task doesn't need the heavier model anyway.
+const MODEL = 'gemini-flash-lite-latest'
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
 
 const PROMPT = `זהו החלק הכי חשוב במערכת הזו - הניתוב הזה הוא הלב של האפליקציה, וההורים סומכים עליו כדי לא לפספס אף מטלה. תעבדי לאט, בקפידה, ותקראי את ההודעה *כולה* מתחילתה ועד סופה לפני שאת מחליטה משהו.
