@@ -78,7 +78,7 @@ export default function App() {
       await updateMessageTags(id, result.tags)
       await Promise.all([
         ...result.events.map((e) => addEventDoc(e, id)),
-        ...result.assignments.map((a) => addAssignmentDoc(a, id)),
+        ...result.assignments.map((a) => addAssignmentDoc(a, id, sentAt)),
         ...result.announcements.map((a) => addAnnouncementDoc(a, id)),
       ])
 

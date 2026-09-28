@@ -15,6 +15,7 @@ import { CLASS_ID, db, ensureSignedIn } from './firebase'
 import type { DestinationTag } from './classify'
 import type { AnnouncementMeta, AssignmentMeta, EventMeta } from './classify'
 import type { AnnouncementCard, AssignmentCard, ChatMessage, EventCard, Photo } from './data'
+import { toISO, weekdayName } from './dateUtils'
 
 function classCollection(name: string) {
   return collection(db!, 'classes', CLASS_ID, name)
@@ -110,9 +111,10 @@ export function useAssignments(): AssignmentCard[] {
             source: data.source ?? undefined,
             content: data.content,
             icon: data.icon,
-            dateLabel: data.dateLabel,
-            dateIso: data.dateIso ?? undefined,
-            weekday: data.weekday ?? undefined,
+            dayIso: data.dayIso ?? '',
+            dayLabel: data.dayLabel ?? '',
+            weekday: data.weekday ?? '',
+            ts: data.ts ?? 0,
             sourceMessageId: data.sourceMessageId ?? undefined,
           }
         }),
@@ -233,18 +235,21 @@ export async function addEventDoc(meta: EventMeta, sourceMessageId: string): Pro
   })
 }
 
-export async function addAssignmentDoc(meta: AssignmentMeta, sourceMessageId: string): Promise<void> {
+// The bubble a teacher's assignment lands in is the day it was *given*
+// (the message's send time), not any date mentioned in its text - so that
+// gets computed here from `sentAt`, independent of what the classifier found.
+export async function addAssignmentDoc(meta: AssignmentMeta, sourceMessageId: string, sentAt: Date): Promise<void> {
   await ensureSignedIn()
   await addDoc(classCollection('assignments'), {
     subject: meta.subject,
     source: meta.source ?? null,
     content: meta.content,
     icon: meta.icon,
-    dateLabel: meta.dateLabel,
-    dateIso: meta.dateIso ?? null,
-    weekday: meta.weekday ?? null,
+    dayIso: toISO(sentAt),
+    dayLabel: `${sentAt.getDate()}.${sentAt.getMonth() + 1}`,
+    weekday: weekdayName(sentAt),
     sourceMessageId,
-    ts: Date.now(),
+    ts: sentAt.getTime(),
   })
 }
 

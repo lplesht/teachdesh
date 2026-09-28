@@ -16,9 +16,6 @@ export interface AssignmentMeta {
   source?: string
   content: string
   icon: string
-  dateLabel: string
-  dateIso?: string
-  weekday?: string
 }
 
 export const GENERAL_SUBJECT = '(כללי)'
@@ -248,7 +245,6 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
 
   let currentSubject: { label: string; icon: string } | undefined
   let buffer: string[] = []
-  let bufferDate: ResolvedDate | undefined
   const eventGroupLines = new Map<(string | RegExp)[], string[]>()
 
   const flushBuffer = () => {
@@ -260,12 +256,8 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
       source: extractSource(combined),
       content: combined,
       icon: subjectFallback?.icon ?? assignmentIcon(combined),
-      dateLabel: bufferDate?.label ?? 'בקרוב',
-      dateIso: bufferDate?.iso,
-      weekday: bufferDate?.weekday,
     })
     buffer = []
-    bufferDate = undefined
   }
 
   const lines = text
@@ -297,8 +289,6 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
 
     if (BULLET_RE.test(line) || ASSIGNMENT_KEYWORDS.some((k) => line.includes(k))) {
       buffer.push(cleanLine(line))
-      const resolved = resolveDate(line, sentAt)
-      if (resolved.iso) bufferDate = resolved
     }
   }
 

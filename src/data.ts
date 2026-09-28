@@ -42,9 +42,13 @@ export interface AssignmentCard {
   source?: string
   content: string
   icon: string
-  dateLabel: string
-  dateIso?: string
-  weekday?: string
+  // The day the assignment was *given* (derived from the message's send
+  // time), used to group same-day assignments into one bubble - not a due
+  // date, which assignments no longer carry.
+  dayIso: string
+  dayLabel: string
+  weekday: string
+  ts: number
   sourceMessageId?: string
 }
 
@@ -188,9 +192,10 @@ export const initialAssignments: AssignmentCard[] = [
     source: 'ספר התנ"ך, עמודים 51-58',
     content: 'למדנו על משה ואהרון, עמודים 51-58',
     icon: '📖',
-    dateLabel: '22.9',
-    dateIso: '2026-09-22',
+    dayIso: '2026-09-22',
+    dayLabel: '22.9',
     weekday: 'יום שלישי',
+    ts: new Date('2026-09-22T10:20:00').getTime(),
     sourceMessageId: 'c5',
   },
 ]

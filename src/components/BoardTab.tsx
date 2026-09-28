@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { AssignmentCard } from '../data'
 import { ClipboardIcon } from './icons'
 import ExpandableText from './ExpandableText'
@@ -6,7 +7,34 @@ interface Props {
   assignments: AssignmentCard[]
 }
 
+interface DayBubble {
+  key: string
+  dayLabel: string
+  weekday: string
+  items: AssignmentCard[]
+}
+
+// Assignments are given a fresh card per subject-segment as they're
+// classified, but parents should see them grouped by the day the teacher
+// actually gave them - all subjects from that day in one bubble, in the
+// order they were given - not one scattered card per subject.
+function groupByDay(assignments: AssignmentCard[]): DayBubble[] {
+  const byDay = new Map<string, AssignmentCard[]>()
+  for (const a of [...assignments].sort((x, y) => x.ts - y.ts)) {
+    const key = a.dayIso || a.dayLabel
+    const items = byDay.get(key) ?? []
+    items.push(a)
+    byDay.set(key, items)
+  }
+
+  return [...byDay.entries()]
+    .map(([key, items]) => ({ key, dayLabel: items[0].dayLabel, weekday: items[0].weekday, items }))
+    .sort((x, y) => y.items[y.items.length - 1].ts - x.items[x.items.length - 1].ts)
+}
+
 export default function BoardTab({ assignments }: Props) {
+  const bubbles = useMemo(() => groupByDay(assignments), [assignments])
+
   return (
     <div className="h-full overflow-y-auto px-4 py-4">
       <div className="mb-1 flex items-center gap-2">
@@ -17,30 +45,36 @@ export default function BoardTab({ assignments }: Props) {
       </div>
       <p className="mb-4 text-xs text-slate-400">מתעדכן אוטומטית מהודעות המורה - החדש ביותר למעלה</p>
 
-      {assignments.length === 0 && (
+      {bubbles.length === 0 && (
         <p className="rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400">אין עדיין מטלות פתוחות</p>
       )}
 
-      <ul className="flex flex-col gap-2.5">
-        {assignments.map((a) => (
-          <li key={a.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg">{a.icon}</span>
-            <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="inline-block rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
-                  מקצוע: {a.subject}
-                </span>
-                {a.source && (
-                  <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-                    מקור: {a.source}
-                  </span>
-                )}
-              </div>
-              <ExpandableText text={a.content} className="text-sm leading-relaxed text-slate-800" />
-              <span className="mt-1.5 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[10px] font-bold text-sun-600">
-                {a.weekday ? `${a.weekday} · ` : ''}
-                {a.dateLabel}
-              </span>
+      <ul className="flex flex-col gap-3">
+        {bubbles.map((bubble) => (
+          <li key={bubble.key} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm">
+            <div className="mb-2.5 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+              <span className="text-sm font-extrabold text-slate-900">{bubble.weekday}</span>
+              <span className="text-xs font-bold text-slate-400">{bubble.dayLabel}</span>
+            </div>
+            <div className="flex flex-col divide-y divide-slate-50">
+              {bubble.items.map((a) => (
+                <div key={a.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg">{a.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-block rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                        מקצוע: {a.subject}
+                      </span>
+                      {a.source && (
+                        <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                          מקור: {a.source}
+                        </span>
+                      )}
+                    </div>
+                    <ExpandableText text={a.content} className="text-sm leading-relaxed text-slate-800" />
+                  </div>
+                </div>
+              ))}
             </div>
           </li>
         ))}
