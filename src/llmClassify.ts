@@ -210,7 +210,7 @@ export async function classifyWithLLM(text: string, hasPhoto: boolean, sentAt: D
     }
 
     console.info('Gemini classification used', { segments })
-    return finalizeResult(hasPhoto, events, assignments, announcements)
+    return finalizeResult(hasPhoto, events, assignments, announcements, 'gemini')
   } catch (err) {
     console.warn('Gemini classification failed, falling back', err)
     return null

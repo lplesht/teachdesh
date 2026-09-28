@@ -34,6 +34,7 @@ export interface ClassificationResult {
   events: EventMeta[]
   assignments: AssignmentMeta[]
   announcements: AnnouncementMeta[]
+  engine: 'gemini' | 'rules'
 }
 
 // Grouped so different spellings/forms of the same concept ("חופשה"/"חופש")
@@ -73,6 +74,7 @@ export function finalizeResult(
   events: EventMeta[],
   assignments: AssignmentMeta[],
   announcements: AnnouncementMeta[],
+  engine: 'gemini' | 'rules',
 ): ClassificationResult {
   const redirectedAnnouncements = [
     ...announcements,
@@ -85,7 +87,7 @@ export function finalizeResult(
   if (assignments.length > 0) tags.add('assignment')
   if (redirectedAnnouncements.length > 0) tags.add('announcement')
   if (tags.size === 0) tags.add('general')
-  return { tags: [...tags], events: [], assignments, announcements: redirectedAnnouncements }
+  return { tags: [...tags], events: [], assignments, announcements: redirectedAnnouncements, engine }
 }
 
 // Study-related only: what was taught/learned, homework, tests - goes to לוח המטלות.
@@ -319,7 +321,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
 
   flushBuffer()
 
-  return finalizeResult(hasPhoto, events, assignments, announcements)
+  return finalizeResult(hasPhoto, events, assignments, announcements, 'rules')
 }
 
 export const destinationLabel: Record<DestinationTag, string> = {

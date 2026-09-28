@@ -47,7 +47,7 @@ export default function App() {
   }
 
   const applyClassification = (id: string, text: string, photoDataUrl: string | undefined, result: ClassificationResult) => {
-    const { tags, events: newEvents, assignments: newAssignments, announcements: newAnnouncements } = result
+    const { tags, events: newEvents, assignments: newAssignments, announcements: newAnnouncements, engine } = result
 
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, tags } : m)))
 
@@ -107,7 +107,8 @@ export default function App() {
       ])
     }
 
-    showToast(`נוסף אוטומטית ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
+    const engineLabel = engine === 'gemini' ? '🤖 Gemini' : '📋 חוקים'
+    showToast(`${engineLabel} · נוסף אוטומטית ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
   }
 
   const sendMessage = (text: string, photoDataUrl?: string) => {
