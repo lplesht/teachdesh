@@ -14,7 +14,6 @@ import {
   addAnnouncementDoc,
   addAssignmentDoc,
   addEventDoc,
-  addPhotoRecord,
   likeMessageDoc,
   rsvpEventDoc,
   sendMessageDoc,
@@ -66,16 +65,15 @@ export default function App() {
     toastTimer.current = setTimeout(() => setRoutingToast(null), 3800)
   }
 
-  const sendMessage = (text: string, photoDataUrl?: string) => {
+  const sendMessage = (text: string) => {
     const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
     const sentAt = new Date()
 
     void (async () => {
-      const { id, photoUrl } = await sendMessageDoc('teacher', TEACHER_NAME, text, photoDataUrl, time)
-      if (photoUrl) await addPhotoRecord(text || 'תמונה מהכיתה', photoUrl, id)
+      const { id } = await sendMessageDoc('teacher', TEACHER_NAME, text, time)
 
-      const llmResult = await classifyWithLLM(text, !!photoDataUrl, sentAt)
-      const result = llmResult ?? classifyMessage(text, !!photoDataUrl, sentAt)
+      const llmResult = await classifyWithLLM(text, false, sentAt)
+      const result = llmResult ?? classifyMessage(text, false, sentAt)
 
       await updateMessageTags(id, result.tags)
       await Promise.all([
