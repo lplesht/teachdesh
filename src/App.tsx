@@ -80,7 +80,7 @@ export default function App() {
       await Promise.all([
         ...result.events.map((e) => addEventDoc(e, id)),
         ...result.assignments.map((a) => addAssignmentDoc(a, id, sentAt)),
-        ...result.announcements.map((a) => addAnnouncementDoc(a, id)),
+        ...result.announcements.map((a) => addAnnouncementDoc(a, id, sentAt)),
       ])
 
       const engineLabel =

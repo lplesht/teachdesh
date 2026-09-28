@@ -65,7 +65,13 @@ export interface AnnouncementCard {
   id: string
   text: string
   icon: string
-  dateLabel: string
+  // The day the announcement was *sent* (from the message's send time),
+  // used to group same-day announcements into one bubble - not any due
+  // date mentioned in the text itself (e.g. "bring this by tomorrow").
+  dayIso: string
+  dayLabel: string
+  weekday: string
+  ts: number
   sourceMessageId?: string
 }
 
@@ -223,14 +229,20 @@ export const initialAnnouncements: AnnouncementCard[] = [
     id: 'n1',
     text: 'מחר להביא בקבוק מים ושכפ"ץ, יוצאים לחצר לשיעור ספורט 💧',
     icon: '🎒',
-    dateLabel: 'מחר',
+    dayIso: '2026-09-22',
+    dayLabel: '22.9',
+    weekday: 'יום שלישי',
+    ts: new Date('2026-09-22T18:47:00').getTime(),
     sourceMessageId: 'c3',
   },
   {
     id: 'n2',
     text: 'טופס הסכמה לטיול השנתי - יש למלא באתר עד יום חמישי',
     icon: '✍️',
-    dateLabel: 'עד יום חמישי',
+    dayIso: '2026-09-23',
+    dayLabel: '23.9',
+    weekday: 'יום רביעי',
+    ts: new Date('2026-09-23T09:12:00').getTime(),
     sourceMessageId: 'c4',
   },
 ]

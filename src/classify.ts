@@ -23,7 +23,6 @@ export const GENERAL_SUBJECT = '(כללי)'
 export interface AnnouncementMeta {
   text: string
   icon: string
-  dateLabel: string
 }
 
 export interface ClassificationResult {
@@ -75,7 +74,7 @@ export function finalizeResult(
 ): ClassificationResult {
   const redirectedAnnouncements = [
     ...announcements,
-    ...events.map((e): AnnouncementMeta => ({ text: e.title, icon: e.icon, dateLabel: e.date })),
+    ...events.map((e): AnnouncementMeta => ({ text: e.title, icon: e.icon })),
   ]
 
   const tags = new Set<DestinationTag>()
@@ -283,7 +282,6 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
       announcements.push({
         text: cleanLine(line),
         icon: announcementIcon(line),
-        dateLabel: resolveDate(line, sentAt).label,
       })
     }
 

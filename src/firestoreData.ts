@@ -140,7 +140,10 @@ export function useAnnouncements(): AnnouncementCard[] {
             id: d.id,
             text: data.text,
             icon: data.icon,
-            dateLabel: data.dateLabel,
+            dayIso: data.dayIso ?? '',
+            dayLabel: data.dayLabel ?? '',
+            weekday: data.weekday ?? '',
+            ts: data.ts ?? 0,
             sourceMessageId: data.sourceMessageId ?? undefined,
           }
         }),
@@ -276,14 +279,19 @@ export async function addAssignmentDoc(meta: AssignmentMeta, sourceMessageId: st
   })
 }
 
-export async function addAnnouncementDoc(meta: AnnouncementMeta, sourceMessageId: string): Promise<void> {
+// The bubble an announcement lands in is the day it was *sent* (the
+// message's send time), not any date mentioned in its text ("bring this by
+// tomorrow") - so that gets computed here from `sentAt`, same as assignments.
+export async function addAnnouncementDoc(meta: AnnouncementMeta, sourceMessageId: string, sentAt: Date): Promise<void> {
   await ensureSignedIn()
   await addDoc(classCollection('announcements'), {
     text: meta.text,
     icon: meta.icon,
-    dateLabel: meta.dateLabel,
+    dayIso: toISO(sentAt),
+    dayLabel: `${sentAt.getDate()}.${sentAt.getMonth() + 1}`,
+    weekday: weekdayName(sentAt),
     sourceMessageId,
-    ts: Date.now(),
+    ts: sentAt.getTime(),
   })
 }
 

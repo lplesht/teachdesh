@@ -170,11 +170,9 @@ function buildMetasFromSegments(segments: LLMSegment[], lines: string[], sentAt:
         icon: iconMatch?.icon ?? assignmentIcon(text),
       })
     } else if (seg.category === 'announcement') {
-      const resolved = resolveDate(text, sentAt)
       announcements.push({
         text,
         icon: announcementIcon(text),
-        dateLabel: resolved.label,
       })
     }
   }
