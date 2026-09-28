@@ -11,8 +11,7 @@ import {
   updateDoc,
   type DocumentData,
 } from 'firebase/firestore'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { CLASS_ID, db, ensureSignedIn, storage } from './firebase'
+import { CLASS_ID, db, ensureSignedIn } from './firebase'
 import type { DestinationTag } from './classify'
 import type { AnnouncementMeta, AssignmentMeta, EventMeta } from './classify'
 import type { AnnouncementCard, AssignmentCard, ChatMessage, EventCard, Photo } from './data'
@@ -185,28 +184,13 @@ export function useRoster(): string[] {
 
 // --- Writes ---
 
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const res = await fetch(dataUrl)
-  return res.blob()
-}
-
 export async function sendMessageDoc(
   from: 'teacher' | 'parent',
   authorName: string,
   text: string,
-  photoDataUrl: string | undefined,
   time: string,
-): Promise<{ id: string; photoUrl?: string }> {
+): Promise<{ id: string }> {
   await ensureSignedIn()
-
-  let photoUrl: string | undefined
-  if (photoDataUrl && storage) {
-    const blob = await dataUrlToBlob(photoDataUrl)
-    const path = `classes/${CLASS_ID}/messages/${crypto.randomUUID()}`
-    const storageRef = ref(storage, path)
-    await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' })
-    photoUrl = await getDownloadURL(storageRef)
-  }
 
   const docRef = await addDoc(classCollection('messages'), {
     from,
@@ -215,12 +199,12 @@ export async function sendMessageDoc(
     time,
     likes: 0,
     readBy: 0,
-    photoUrl: photoUrl ?? null,
+    photoUrl: null,
     tags: [],
     ts: Date.now(),
   })
 
-  return { id: docRef.id, photoUrl }
+  return { id: docRef.id }
 }
 
 export async function updateMessageTags(id: string, tags: DestinationTag[]): Promise<void> {
@@ -270,17 +254,6 @@ export async function addAnnouncementDoc(meta: AnnouncementMeta, sourceMessageId
     text: meta.text,
     icon: meta.icon,
     dateLabel: meta.dateLabel,
-    sourceMessageId,
-    ts: Date.now(),
-  })
-}
-
-export async function addPhotoRecord(caption: string, imageUrl: string, sourceMessageId: string): Promise<void> {
-  await ensureSignedIn()
-  await addDoc(classCollection('photos'), {
-    caption,
-    date: 'היום',
-    imageUrl,
     sourceMessageId,
     ts: Date.now(),
   })
