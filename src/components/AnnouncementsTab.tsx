@@ -55,10 +55,12 @@ export default function AnnouncementsTab({ announcements }: Props) {
               <span className="text-sm font-extrabold text-slate-900">{bubble.weekday}</span>
               <span className="text-xs font-bold text-slate-400">{bubble.dayLabel}</span>
             </div>
-            <div className="flex flex-col divide-y divide-slate-50">
+            <div className="flex flex-col gap-1.5">
               {bubble.items.map((n) => (
-                <div key={n.id} className="py-2.5 first:pt-0 last:pb-0">
-                  <ExpandableText text={`${n.icon} ${n.text}`} className="text-sm leading-relaxed text-slate-800" />
+                <div key={n.id} className="flex items-start">
+                  <div className="max-w-full rounded-2xl rounded-ss-sm bg-rose-50 px-3.5 py-2.5">
+                    <ExpandableText text={`${n.icon} ${n.text}`} className="text-sm leading-relaxed text-slate-800" />
+                  </div>
                 </div>
               ))}
             </div>
