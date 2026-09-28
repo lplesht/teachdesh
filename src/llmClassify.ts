@@ -27,14 +27,13 @@ interface LLMSegment {
 }
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
-// Using the "-latest" alias rather than a pinned version like
-// "gemini-2.5-flash" - Google has been sunsetting specific stable
-// snapshots for new API keys while keeping these aliases pointed at
-// whatever's current, so this is less likely to 404 again later.
-// The "lite" variant specifically: the full "gemini-flash-latest" pool was
-// persistently overloaded (503 "high demand") even after retries, and this
-// line-classification task doesn't need the heavier model anyway.
-const MODEL = 'gemini-flash-lite-latest'
+// Both "gemini-flash-latest" and "gemini-flash-lite-latest" came back with
+// the identical "high demand" 503 even after retries - suspicious enough to
+// suggest this may not be per-model capacity at all (could be an
+// account/project-level quota warm-up on a brand new API key). Trying a
+// separately-served stable snapshot instead of another alias, as a more
+// meaningful test of that theory.
+const MODEL = 'gemini-2.5-flash-lite'
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
 
 const PROMPT = `זהו החלק הכי חשוב במערכת הזו - הניתוב הזה הוא הלב של האפליקציה, וההורים סומכים עליו כדי לא לפספס אף מטלה. תעבדי לאט, בקפידה, ותקראי את ההודעה *כולה* מתחילתה ועד סופה לפני שאת מחליטה משהו.
