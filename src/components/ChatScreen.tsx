@@ -69,6 +69,7 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
                   )}
                 </p>
                 {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
+                <p className="mt-0.5 text-end text-[10px] text-slate-400">{m.time}</p>
               </div>
 
               {isTeacher && shownTags.length > 0 && (
@@ -90,7 +91,6 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
               )}
 
               <div className="mt-1 flex items-center gap-2 px-1 text-[11px] text-slate-400">
-                <span>{m.time}</span>
                 <button
                   type="button"
                   onClick={() => onLike(m.id)}
