@@ -7,35 +7,55 @@ import BoardTab from './components/BoardTab'
 import AnnouncementsTab from './components/AnnouncementsTab'
 import GalleryTab from './components/GalleryTab'
 import RosterModal from './components/RosterModal'
-import { classifyMessage, destinationLabel, type ClassificationResult } from './classify'
+import { classifyMessage, destinationLabel } from './classify'
 import { classifyWithLLM } from './llmClassify'
+import { firebaseReady } from './firebase'
 import {
-  initialAnnouncements,
-  initialAssignments,
-  initialEvents,
-  initialMessages,
-  initialPhotos,
-  initialStudents,
-  type AnnouncementCard,
-  type AssignmentCard,
-  type ChatMessage,
-  type EventCard,
-  type Photo,
-  type Role,
-  type TabId,
-} from './data'
+  addAnnouncementDoc,
+  addAssignmentDoc,
+  addEventDoc,
+  addPhotoRecord,
+  likeMessageDoc,
+  rsvpEventDoc,
+  sendMessageDoc,
+  updateMessageTags,
+  updateRosterDoc,
+  useAnnouncements,
+  useAssignments,
+  useEvents,
+  useMessages,
+  usePhotos,
+  useRoster,
+} from './firestoreData'
+import type { Role, TabId } from './data'
+
+const TEACHER_NAME = 'תהילה שם טוב'
+
+function FirebaseSetupNotice() {
+  return (
+    <div className="grid min-h-dvh place-items-center bg-slate-100 p-6 text-center" dir="rtl">
+      <div className="max-w-sm rounded-2xl bg-white p-6 shadow-lg">
+        <h1 className="mb-2 text-lg font-extrabold text-slate-900">חסרה הגדרת Firebase</h1>
+        <p className="text-sm leading-relaxed text-slate-600">
+          האפליקציה לא מחוברת עדיין למסד נתונים. צריך להוסיף את משתני הסביבה <code dir="ltr">VITE_FIREBASE_*</code> כ-secrets
+          בריפו (ראה הוראות בצ'אט).
+        </p>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   const [role, setRole] = useState<Role>('parent')
   const [tab, setTab] = useState<TabId>('home')
-  const [students, setStudents] = useState<string[]>(initialStudents)
   const [rosterOpen, setRosterOpen] = useState(false)
 
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
-  const [events, setEvents] = useState<EventCard[]>(initialEvents)
-  const [assignments, setAssignments] = useState<AssignmentCard[]>(initialAssignments)
-  const [announcements, setAnnouncements] = useState<AnnouncementCard[]>(initialAnnouncements)
-  const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
+  const students = useRoster()
+  const messages = useMessages()
+  const events = useEvents()
+  const assignments = useAssignments()
+  const announcements = useAnnouncements()
+  const photos = usePhotos()
 
   const [routingToast, setRoutingToast] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -46,105 +66,38 @@ export default function App() {
     toastTimer.current = setTimeout(() => setRoutingToast(null), 3800)
   }
 
-  const applyClassification = (id: string, text: string, photoDataUrl: string | undefined, result: ClassificationResult) => {
-    const { tags, events: newEvents, assignments: newAssignments, announcements: newAnnouncements, engine } = result
-
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, tags } : m)))
-
-    if (newEvents.length > 0) {
-      setEvents((prev) => [
-        ...newEvents.map((eventMeta, i) => ({
-          id: `e${Date.now()}_${i}`,
-          title: eventMeta.title,
-          date: eventMeta.date,
-          dateIso: eventMeta.dateIso,
-          time: eventMeta.time,
-          location: eventMeta.location,
-          icon: eventMeta.icon,
-          rsvpYes: 0,
-          rsvpNo: 0,
-          myRsvp: null,
-          sourceMessageId: id,
-        })),
-        ...prev,
-      ])
-    }
-
-    if (newAssignments.length > 0) {
-      setAssignments((prev) => [
-        ...newAssignments.map((assignmentMeta, i) => ({
-          id: `a${Date.now()}_${i}`,
-          subject: assignmentMeta.subject,
-          source: assignmentMeta.source,
-          content: assignmentMeta.content,
-          icon: assignmentMeta.icon,
-          dateLabel: assignmentMeta.dateLabel,
-          dateIso: assignmentMeta.dateIso,
-          weekday: assignmentMeta.weekday,
-          sourceMessageId: id,
-        })),
-        ...prev,
-      ])
-    }
-
-    if (newAnnouncements.length > 0) {
-      setAnnouncements((prev) => [
-        ...newAnnouncements.map((announcementMeta, i) => ({
-          id: `n${Date.now()}_${i}`,
-          text: announcementMeta.text,
-          icon: announcementMeta.icon,
-          dateLabel: announcementMeta.dateLabel,
-          sourceMessageId: id,
-        })),
-        ...prev,
-      ])
-    }
-
-    if (photoDataUrl) {
-      setPhotos((prev) => [
-        { id: `p${Date.now()}`, caption: text || 'תמונה מהכיתה', date: 'היום', gradient: '', emoji: '', imageUrl: photoDataUrl, sourceMessageId: id },
-        ...prev,
-      ])
-    }
-
-    const engineLabel = engine === 'gemini' ? '🤖 Gemini' : '📋 חוקים'
-    showToast(`${engineLabel} · נוסף אוטומטית ל: ${tags.map((t) => destinationLabel[t]).join(' + ')}`)
-  }
-
   const sendMessage = (text: string, photoDataUrl?: string) => {
-    const id = `c${Date.now()}`
     const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
     const sentAt = new Date()
 
-    setMessages((prev) => [
-      ...prev,
-      { id, from: 'teacher', authorName: 'תהילה שם טוב', text, time, likes: 0, readBy: 0, photoUrl: photoDataUrl, tags: [] },
-    ])
-
     void (async () => {
+      const { id, photoUrl } = await sendMessageDoc('teacher', TEACHER_NAME, text, photoDataUrl, time)
+      if (photoUrl) await addPhotoRecord(text || 'תמונה מהכיתה', photoUrl, id)
+
       const llmResult = await classifyWithLLM(text, !!photoDataUrl, sentAt)
       const result = llmResult ?? classifyMessage(text, !!photoDataUrl, sentAt)
-      applyClassification(id, text, photoDataUrl, result)
+
+      await updateMessageTags(id, result.tags)
+      await Promise.all([
+        ...result.events.map((e) => addEventDoc(e, id)),
+        ...result.assignments.map((a) => addAssignmentDoc(a, id)),
+        ...result.announcements.map((a) => addAnnouncementDoc(a, id)),
+      ])
+
+      const engineLabel = result.engine === 'gemini' ? '🤖 Gemini' : '📋 חוקים'
+      showToast(`${engineLabel} · נוסף אוטומטית ל: ${result.tags.map((t) => destinationLabel[t]).join(' + ')}`)
     })()
   }
 
   const likeMessage = (id: string) => {
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, likes: m.likes + 1 } : m)))
+    void likeMessageDoc(id)
   }
 
   const rsvpEvent = (id: string, answer: 'yes' | 'no') => {
-    setEvents((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== id || ev.myRsvp === answer) return ev
-        let { rsvpYes, rsvpNo } = ev
-        if (ev.myRsvp === 'yes') rsvpYes -= 1
-        if (ev.myRsvp === 'no') rsvpNo -= 1
-        if (answer === 'yes') rsvpYes += 1
-        if (answer === 'no') rsvpNo += 1
-        return { ...ev, myRsvp: answer, rsvpYes, rsvpNo }
-      }),
-    )
+    void rsvpEventDoc(id, answer)
   }
+
+  if (!firebaseReady) return <FirebaseSetupNotice />
 
   return (
     <div className="min-h-dvh bg-slate-200 sm:flex sm:items-center sm:justify-center sm:p-8">
@@ -172,7 +125,9 @@ export default function App() {
         />
       </div>
 
-      {rosterOpen && <RosterModal students={students} onClose={() => setRosterOpen(false)} onUpdate={setStudents} />}
+      {rosterOpen && (
+        <RosterModal students={students} onClose={() => setRosterOpen(false)} onUpdate={(names) => void updateRosterDoc(names)} />
+      )}
     </div>
   )
 }
