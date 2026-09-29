@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAccessList, setAccessDoc, deleteAccessDoc, type AccessEntry } from '../firestoreData'
 import { normalizePhone } from '../auth/session'
-import { TrashIcon } from './icons'
+import { PencilIcon, TrashIcon } from './icons'
 
 interface Props {
   classId: string
@@ -19,6 +19,9 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
   const [role, setRole] = useState<'parent' | 'teacher'>('parent')
   const [code, setCode] = useState(randomCode())
   const [saving, setSaving] = useState(false)
+  const [editingPhone, setEditingPhone] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const add = async () => {
     const normalized = normalizePhone(phone)
@@ -35,6 +38,25 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
   const remove = (entry: AccessEntry) => {
     if (!window.confirm(`להסיר את ${entry.displayName}?`)) return
     void deleteAccessDoc(classId, entry.phone)
+  }
+
+  const startEdit = (entry: AccessEntry) => {
+    setEditingPhone(entry.phone)
+    setEditName(entry.displayName)
+  }
+
+  const cancelEdit = () => {
+    setEditingPhone(null)
+    setEditName('')
+  }
+
+  const saveEdit = async (entry: AccessEntry) => {
+    const name = editName.trim()
+    if (!name) return
+    setSavingEdit(true)
+    await setAccessDoc(classId, { ...entry, displayName: name })
+    setSavingEdit(false)
+    cancelEdit()
   }
 
   return (
@@ -95,26 +117,67 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
         </div>
 
         <ul className="flex flex-col divide-y divide-slate-50">
-          {entries.map((entry) => (
-            <li key={entry.phone} className="flex items-center justify-between gap-2 py-2.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-800">
-                  {entry.displayName} · {entry.role === 'teacher' ? 'מורה' : 'הורה'}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {entry.phone} · קוד: {entry.code}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(entry)}
-                className="shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-                aria-label="הסרה"
-              >
-                <TrashIcon className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
+          {entries.map((entry) => {
+            const isEditing = editingPhone === entry.phone
+            return (
+              <li key={entry.phone} className="flex items-center justify-between gap-2 py-2.5">
+                {isEditing ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveEdit(entry)
+                        if (e.key === 'Escape') cancelEdit()
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-brand-300 px-2 py-1 text-sm outline-none focus:border-brand-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveEdit(entry)}
+                      disabled={savingEdit || !editName.trim()}
+                      className="shrink-0 rounded-full px-2 py-1 text-xs font-bold text-brand-600 disabled:text-slate-300"
+                    >
+                      שמירה
+                    </button>
+                    <button type="button" onClick={cancelEdit} className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-slate-400">
+                      ביטול
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-800">
+                        {entry.displayName} · {entry.role === 'teacher' ? 'מורה' : 'הורה'}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {entry.phone} · קוד: {entry.code}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(entry)}
+                        className="rounded-full p-1.5 text-slate-400 transition hover:bg-brand-50 hover:text-brand-600"
+                        aria-label="עריכת שם"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(entry)}
+                        className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                        aria-label="הסרה"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </li>
+            )
+          })}
           {entries.length === 0 && <p className="py-4 text-center text-xs text-slate-400">אין עדיין הרשאות</p>}
         </ul>
 
