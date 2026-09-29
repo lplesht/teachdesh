@@ -7,21 +7,20 @@ export interface ClassInfo {
 }
 
 // Known up front for the pilot (just 2 classes) - kept in code rather than
-// Firestore so listing them costs no extra read. Replace the placeholder
-// values for the second class once they're decided.
+// Firestore so listing them costs no extra read.
 export const CLASSES: Record<string, ClassInfo> = {
   g4: {
     id: 'g4',
     className: 'ג׳ 4',
-    schoolName: 'בית ספר יסודי "הרצוג"',
+    schoolName: 'בית ספר יסודי הרצוג',
     teacherName: 'תהילה שם טוב',
     teacherInitials: 'תש',
   },
-  class2: {
-    id: 'class2',
-    className: '(כיתה שנייה - למלא)',
-    schoolName: '(שם בית ספר - למלא)',
-    teacherName: '(שם מורה - למלא)',
-    teacherInitials: '??',
+  b1: {
+    id: 'b1',
+    className: 'ב׳ 1',
+    schoolName: 'בית ספר יסודי הרצוג',
+    teacherName: 'אדום מטודי',
+    teacherInitials: 'אמ',
   },
 }
