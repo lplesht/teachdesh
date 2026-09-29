@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { auth, db, ensureSignedIn } from '../firebase'
 import type { AccessEntry } from '../firestoreData'
@@ -47,27 +47,74 @@ export function useSession(): 'loading' | Session | null {
   return session
 }
 
+function sessionKeyOf(session: Session | 'loading' | null): string | null {
+  return session === 'loading' || session === null ? null : `${session.classId}:${session.phone}`
+}
+
 // Looks up role/displayName for the current session by reading its matching
 // access doc - this is the *only* source of truth for role in the UI, same
 // as the security rules use server-side.
+//
+// Reports 'loading' (via the ref check below) until the lookup has actually
+// settled *for the current session's identity* - not just "whatever `access`
+// happened to hold before `session` changed". Without that guard, right
+// after logging in there's one render where `session` is already the new,
+// real session but `access` still holds its previous value (null, from
+// being logged out) because this hook's own effect hasn't run yet - a
+// momentary false "access confirmed absent" that looks identical to a
+// genuinely removed access doc to anything reading both values together
+// (e.g. a stale-session cleanup effect), causing it to immediately delete
+// the session it just created.
+const MAX_ACCESS_RETRIES = 8
+const ACCESS_RETRY_DELAY_MS = 400
+
 export function useMyAccess(session: Session | 'loading' | null): AccessEntry | 'loading' | null {
   const [access, setAccess] = useState<AccessEntry | 'loading' | null>('loading')
+  const resolvedForKey = useRef<string | null>(null)
+  const sessionKey = sessionKeyOf(session)
+  const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
     if (session === 'loading') {
       setAccess('loading')
+      resolvedForKey.current = null
       return
     }
     if (!db || !session) {
       setAccess(null)
+      resolvedForKey.current = null
       return
     }
-    return onSnapshot(doc(db, 'classes', session.classId, 'access', session.phone), (snap) => {
-      const data = snap.data()
-      setAccess(data ? { phone: session.phone, code: data.code, role: data.role, displayName: data.displayName } : null)
-    })
-  }, [session])
 
+    let cancelled = false
+    let attempt = retryTick
+    const unsub = onSnapshot(
+      doc(db, 'classes', session.classId, 'access', session.phone),
+      (snap) => {
+        const data = snap.data()
+        resolvedForKey.current = sessionKey
+        setAccess(data ? { phone: session.phone, code: data.code, role: data.role, displayName: data.displayName } : null)
+      },
+      () => {
+        // The access doc's read rule depends on sessions/{uid} that was
+        // just created a moment ago - very occasionally the rule engine
+        // evaluates against a not-yet-visible write and rejects this read
+        // even though the session is genuinely valid. Retry a few times
+        // (rather than dying silently) before giving up.
+        if (cancelled || attempt >= MAX_ACCESS_RETRIES) return
+        attempt += 1
+        setTimeout(() => {
+          if (!cancelled) setRetryTick((t) => t + 1)
+        }, ACCESS_RETRY_DELAY_MS)
+      },
+    )
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [session, retryTick])
+
+  if (resolvedForKey.current !== sessionKey) return 'loading'
   return access
 }
 
