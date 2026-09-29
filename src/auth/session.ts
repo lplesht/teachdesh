@@ -36,10 +36,27 @@ export function useSession(): 'loading' | Session | null {
         setSession(null)
         return
       }
-      unsubSession = onSnapshot(sessionDoc(uid), (snap) => {
-        const data = snap.data()
-        setSession(data ? { classId: data.classId, phone: data.phone } : null)
-      })
+      unsubSession = onSnapshot(
+        sessionDoc(uid),
+        // Firestore applies writes to the local cache optimistically,
+        // before the server has actually accepted or rejected them - so a
+        // write that will ultimately be *rejected* (wrong code) still
+        // fires this listener once with hasPendingWrites=true and the
+        // (invalid) data as if it had already succeeded. Ignoring pending
+        // snapshots and waiting for the server-confirmed one avoids a
+        // brief false "logged in" flash that would otherwise unmount the
+        // login screen (and its error message) before the real rejection
+        // comes back moments later. includeMetadataChanges is required
+        // here: without it, Firestore only re-fires a listener when the
+        // *data* changes, and the pending->confirmed transition has
+        // identical data, so the confirmation would never arrive at all.
+        { includeMetadataChanges: true },
+        (snap) => {
+          if (snap.metadata.hasPendingWrites) return
+          const data = snap.data()
+          setSession(data ? { classId: data.classId, phone: data.phone } : null)
+        },
+      )
     })
     return () => unsubSession?.()
   }, [])
