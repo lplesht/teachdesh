@@ -1,19 +1,31 @@
 import { useState } from 'react'
-import { CLASSES } from '../classes'
+import { findClassByNumber, type ClassInfo } from '../classes'
 import { login } from '../auth/session'
 
 export default function LoginScreen() {
-  const [classId, setClassId] = useState<string | null>(null)
+  const [classNumber, setClassNumber] = useState('')
+  const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
+  const [classError, setClassError] = useState<string | null>(null)
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const submitClassNumber = () => {
+    const found = findClassByNumber(Number(classNumber))
+    if (!found) {
+      setClassError('מספר כיתה לא נכון')
+      return
+    }
+    setClassError(null)
+    setClassInfo(found)
+  }
+
   const submit = async () => {
-    if (!classId) return
+    if (!classInfo) return
     setSubmitting(true)
     setError(null)
-    const result = await login(classId, phone, code)
+    const result = await login(classInfo.id, phone, code)
     setSubmitting(false)
     if (!result.ok) setError(result.error)
   }
@@ -24,30 +36,41 @@ export default function LoginScreen() {
         <h1 className="mb-1 text-lg font-extrabold text-slate-900">כיתת ענן</h1>
         <p className="mb-5 text-sm text-slate-500">התחברות עם מספר טלפון וקוד שקיבלת מהמורה</p>
 
-        {!classId ? (
-          <div className="flex flex-col gap-2">
-            {Object.values(CLASSES).map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setClassId(c.id)}
-                className="rounded-xl border border-slate-200 px-4 py-3 text-start text-sm font-bold text-slate-700 transition hover:border-brand-400 hover:bg-brand-50"
-              >
-                {c.className} · {c.schoolName}
-              </button>
-            ))}
+        {!classInfo ? (
+          <div className="flex flex-col gap-3">
+            <input
+              type="number"
+              inputMode="numeric"
+              value={classNumber}
+              onChange={(e) => {
+                setClassNumber(e.target.value)
+                setClassError(null)
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && submitClassNumber()}
+              placeholder="מספר כיתה"
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            />
+            {classError && <p className="text-xs font-semibold text-rose-600">{classError}</p>}
+            <button
+              type="button"
+              onClick={submitClassNumber}
+              disabled={!classNumber.trim()}
+              className="rounded-xl bg-brand-600 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200"
+            >
+              המשך
+            </button>
           </div>
         ) : (
           <>
             <button
               type="button"
               onClick={() => {
-                setClassId(null)
+                setClassInfo(null)
                 setError(null)
               }}
               className="mb-3 text-xs font-semibold text-brand-600"
             >
-              ← בחירת כיתה אחרת
+              ← כיתה {classInfo.className} · שינוי
             </button>
             <div className="flex flex-col gap-3">
               <input
