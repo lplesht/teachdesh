@@ -5,6 +5,7 @@ import ExpandableText from './ExpandableText'
 
 interface Props {
   announcements: AnnouncementCard[]
+  unreadSince: number
 }
 
 interface DayBubble {
@@ -31,7 +32,7 @@ function groupByDay(announcements: AnnouncementCard[]): DayBubble[] {
     .sort((x, y) => y.items[y.items.length - 1].ts - x.items[x.items.length - 1].ts)
 }
 
-export default function AnnouncementsTab({ announcements }: Props) {
+export default function AnnouncementsTab({ announcements, unreadSince }: Props) {
   const bubbles = useMemo(() => groupByDay(announcements), [announcements])
 
   return (
@@ -56,13 +57,20 @@ export default function AnnouncementsTab({ announcements }: Props) {
               <span className="text-xs font-bold text-slate-400">{bubble.dayLabel}</span>
             </div>
             <div className="flex flex-col gap-1.5">
-              {bubble.items.map((n) => (
-                <div key={n.id} className="flex items-start">
-                  <div className="max-w-full rounded-2xl rounded-ss-sm bg-rose-50 px-3.5 py-2.5">
-                    <ExpandableText text={`${n.icon} ${n.text}`} className="text-sm leading-relaxed text-slate-800" />
+              {bubble.items.map((n) => {
+                const isUnread = n.ts > unreadSince
+                return (
+                  <div key={n.id} className="flex items-start">
+                    <div
+                      className={`max-w-full rounded-2xl rounded-ss-sm px-3.5 py-2.5 ${
+                        isUnread ? 'bg-amber-100' : 'bg-rose-50'
+                      }`}
+                    >
+                      <ExpandableText text={`${n.icon} ${n.text}`} className="text-sm leading-relaxed text-slate-800" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </li>
         ))}

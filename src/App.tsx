@@ -85,6 +85,26 @@ export default function App() {
     announcements: getSeenTs('announcements'),
   }))
 
+  // The "seen" line each tab's items are compared against while that tab is
+  // open, so items newer than the *previous* visit stay highlighted as
+  // unread for this whole viewing session - rather than clearing the moment
+  // seenTs itself is bumped to now below.
+  const [unreadSince, setUnreadSince] = useState<Record<BadgedTab, number>>(() => ({
+    calendar: getSeenTs('calendar'),
+    board: getSeenTs('board'),
+    announcements: getSeenTs('announcements'),
+  }))
+
+  // Freezes this tab's unread-since line at its last-seen value the moment
+  // you switch into it (before the effect below moves that value forward),
+  // so items that arrived since your last visit are highlighted for this visit.
+  useEffect(() => {
+    if (!BADGED_TABS.includes(tab as BadgedTab)) return
+    const t = tab as BadgedTab
+    setUnreadSince((prev) => ({ ...prev, [t]: seenTs[t] }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
   // Marks the active badged tab as seen-through-now - runs on every tab
   // switch, and again if its data changes while already open, so new
   // items that arrive while you're looking at the tab don't leave a stale
@@ -162,8 +182,10 @@ export default function App() {
             />
           )}
           {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
-          {tab === 'board' && <BoardTab assignments={assignments} />}
-          {tab === 'announcements' && <AnnouncementsTab announcements={announcements} />}
+          {tab === 'board' && <BoardTab assignments={assignments} unreadSince={unreadSince.board} />}
+          {tab === 'announcements' && (
+            <AnnouncementsTab announcements={announcements} unreadSince={unreadSince.announcements} />
+          )}
           {tab === 'gallery' && <GalleryTab photos={photos} />}
         </main>
 

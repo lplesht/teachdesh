@@ -5,6 +5,7 @@ import ExpandableText from './ExpandableText'
 
 interface Props {
   assignments: AssignmentCard[]
+  unreadSince: number
 }
 
 interface DayBubble {
@@ -32,7 +33,7 @@ function groupByDay(assignments: AssignmentCard[]): DayBubble[] {
     .sort((x, y) => y.items[y.items.length - 1].ts - x.items[x.items.length - 1].ts)
 }
 
-export default function BoardTab({ assignments }: Props) {
+export default function BoardTab({ assignments, unreadSince }: Props) {
   const bubbles = useMemo(() => groupByDay(assignments), [assignments])
 
   return (
@@ -57,8 +58,15 @@ export default function BoardTab({ assignments }: Props) {
               <span className="text-xs font-bold text-slate-400">{bubble.dayLabel}</span>
             </div>
             <div className="flex flex-col divide-y divide-slate-50">
-              {bubble.items.map((a) => (
-                <div key={a.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+              {bubble.items.map((a) => {
+                const isUnread = a.ts > unreadSince
+                return (
+                <div
+                  key={a.id}
+                  className={`flex items-start gap-3 rounded-xl py-2.5 first:pt-0 last:pb-0 ${
+                    isUnread ? '-mx-2 bg-amber-50 px-2' : ''
+                  }`}
+                >
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg">{a.icon}</span>
                   <div className="min-w-0 flex-1">
                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
@@ -79,7 +87,8 @@ export default function BoardTab({ assignments }: Props) {
                     <ExpandableText text={a.content} className="text-sm leading-relaxed text-slate-800" />
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </li>
         ))}
