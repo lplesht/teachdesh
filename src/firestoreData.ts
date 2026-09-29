@@ -62,6 +62,7 @@ export function useMessages(classId: string | undefined): ChatMessage[] {
             authorName: data.authorName,
             text: data.text,
             time: data.time,
+            ts: data.ts ?? 0,
             likes: data.likes ?? 0,
             readBy: data.readBy ?? 0,
             photoUrl: data.photoUrl ?? undefined,

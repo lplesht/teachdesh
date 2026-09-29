@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatMessage, Role, TabId } from '../data'
 import { destinationLabel, type DestinationTag } from '../classify'
+import { formatDayLabel, toISO } from '../dateUtils'
 import { HeartIcon, TrashIcon } from './icons'
 
 interface Props {
@@ -30,6 +31,31 @@ const tagDestination: Partial<Record<DestinationTag, TabId>> = {
   gallery: 'gallery',
 }
 
+interface DayGroup {
+  key: string
+  label: string
+  items: ChatMessage[]
+}
+
+// A sticky element only stays pinned while its *immediate parent* still
+// intersects the viewport - so the day label has to be the first child of
+// a wrapper that spans that whole day's messages, not a wrapper per
+// message, or it scrolls away with just that one message instead of
+// staying pinned for the whole day like WhatsApp's does.
+function groupByDay(messages: ChatMessage[]): DayGroup[] {
+  const groups: DayGroup[] = []
+  for (const m of messages) {
+    const key = toISO(new Date(m.ts))
+    const last = groups[groups.length - 1]
+    if (last?.key === key) {
+      last.items.push(m)
+    } else {
+      groups.push({ key, label: formatDayLabel(m.ts), items: [m] })
+    }
+  }
+  return groups
+}
+
 export default function ChatScreen({
   messages,
   role,
@@ -44,6 +70,7 @@ export default function ChatScreen({
   const [text, setText] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const dayGroups = useMemo(() => groupByDay(messages), [messages])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -78,74 +105,88 @@ export default function ChatScreen({
       )}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        {messages.map((m) => {
-          const isTeacher = m.from === 'teacher'
-          const shownTags = m.tags.filter((t) => t !== 'general')
-          return (
-            <div
-              key={m.id}
-              data-message-id={m.id}
-              className={`flex flex-col rounded-2xl transition-colors duration-700 ${
-                highlightId === m.id ? '-mx-2 bg-amber-100/70 px-2 py-1' : ''
-              } ${isTeacher ? 'items-start' : 'items-end'}`}
-            >
-              <div
-                className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
-                  isTeacher ? 'rounded-ss-sm bg-leaf-100 text-slate-800' : 'rounded-se-sm border border-slate-100 bg-white text-slate-800'
-                }`}
-              >
-                <p className={`mb-0.5 flex items-center gap-1.5 text-[11px] font-bold ${isTeacher ? 'text-leaf-600' : 'text-brand-700'}`}>
-                  {m.authorName}
-                  {isTeacher && (
-                    <span className="rounded-full bg-leaf-500 px-1.5 py-0.5 text-[9px] font-bold text-white">מורה</span>
-                  )}
-                </p>
-                {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
-                <p className="mt-0.5 text-end text-[10px] text-slate-400">{m.time}</p>
-              </div>
-
-              {isTeacher && shownTags.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1 px-1">
-                  {shownTags.map((tag) => {
-                    const destination = tagDestination[tag]
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => destination && onNavigate(destination, m.id)}
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition hover:opacity-80 ${tagStyles[tag]}`}
-                      >
-                        {destinationLabel[tag]}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-
-              <div className="mt-1 flex items-center gap-2 px-1 text-[11px] text-slate-400">
-                <button
-                  type="button"
-                  onClick={() => onLike(m.id)}
-                  className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
-                >
-                  <HeartIcon className="h-3.5 w-3.5" filled={m.likes > 0} />
-                  {m.likes}
-                </button>
-                {isTeacher && m.readBy > 0 && <span>נקרא ע"י {m.readBy} הורים</span>}
-                {role === 'teacher' && (
-                  <button
-                    type="button"
-                    onClick={() => onDelete(m.id)}
-                    className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
-                    aria-label="מחקי הודעה"
-                  >
-                    <TrashIcon className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+        {dayGroups.map((group) => (
+          <div key={group.key}>
+            <div className="sticky top-0 z-10 mb-3 flex justify-center">
+              <span className="rounded-full bg-slate-200/90 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm backdrop-blur-sm">
+                {group.label}
+              </span>
             </div>
-          )
-        })}
+
+            <div className="space-y-3">
+              {group.items.map((m) => {
+                const isTeacher = m.from === 'teacher'
+                const shownTags = m.tags.filter((t) => t !== 'general')
+                return (
+                  <div
+                    key={m.id}
+                    data-message-id={m.id}
+                    className={`flex flex-col rounded-2xl transition-colors duration-700 ${
+                      highlightId === m.id ? '-mx-2 bg-amber-100/70 px-2 py-1' : ''
+                    } ${isTeacher ? 'items-start' : 'items-end'}`}
+                  >
+                    <div
+                      className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
+                        isTeacher
+                          ? 'rounded-ss-sm bg-leaf-100 text-slate-800'
+                          : 'rounded-se-sm border border-slate-100 bg-white text-slate-800'
+                      }`}
+                    >
+                      <p className={`mb-0.5 flex items-center gap-1.5 text-[11px] font-bold ${isTeacher ? 'text-leaf-600' : 'text-brand-700'}`}>
+                        {m.authorName}
+                        {isTeacher && (
+                          <span className="rounded-full bg-leaf-500 px-1.5 py-0.5 text-[9px] font-bold text-white">מורה</span>
+                        )}
+                      </p>
+                      {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
+                      <p className="mt-0.5 text-end text-[10px] text-slate-400">{m.time}</p>
+                    </div>
+
+                    {isTeacher && shownTags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1 px-1">
+                        {shownTags.map((tag) => {
+                          const destination = tagDestination[tag]
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => destination && onNavigate(destination, m.id)}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition hover:opacity-80 ${tagStyles[tag]}`}
+                            >
+                              {destinationLabel[tag]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div className="mt-1 flex items-center gap-2 px-1 text-[11px] text-slate-400">
+                      <button
+                        type="button"
+                        onClick={() => onLike(m.id)}
+                        className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
+                      >
+                        <HeartIcon className="h-3.5 w-3.5" filled={m.likes > 0} />
+                        {m.likes}
+                      </button>
+                      {isTeacher && m.readBy > 0 && <span>נקרא ע"י {m.readBy} הורים</span>}
+                      {role === 'teacher' && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(m.id)}
+                          className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
+                          aria-label="מחקי הודעה"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-2.5">

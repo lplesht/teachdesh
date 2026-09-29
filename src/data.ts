@@ -9,6 +9,7 @@ export interface ChatMessage {
   authorName: string
   text: string
   time: string
+  ts: number
   likes: number
   readBy: number
   photoUrl?: string
@@ -95,6 +96,7 @@ export const initialMessages: ChatMessage[] = [
     authorName: 'תהילה שם טוב',
     text: 'ערב טוב להורים היקרים! רק רציתי לספר שהילדים היו מדהימים היום בחזרות למופע 🎭',
     time: '18:42',
+    ts: new Date('2026-09-20T18:42:00').getTime(),
     likes: 14,
     readBy: 24,
     tags: ['event'],
@@ -105,6 +107,7 @@ export const initialMessages: ChatMessage[] = [
     authorName: 'אמא של יונתן',
     text: 'איזה כיף לשמוע! תודה על העדכון 🙏',
     time: '18:45',
+    ts: new Date('2026-09-20T18:45:00').getTime(),
     likes: 3,
     readBy: 0,
     tags: ['general'],
@@ -115,6 +118,7 @@ export const initialMessages: ChatMessage[] = [
     authorName: 'תהילה שם טוב',
     text: 'תזכורת - מחר להביא בקבוק מים ושכפ"ץ, יוצאים לחצר לשיעור ספורט 💧',
     time: '18:47',
+    ts: new Date('2026-09-20T18:47:00').getTime(),
     likes: 9,
     readBy: 21,
     tags: ['announcement'],
@@ -125,6 +129,7 @@ export const initialMessages: ChatMessage[] = [
     authorName: 'תהילה שם טוב',
     text: 'טופס הסכמה לטיול השנתי - אנא מלאו באתר עד יום חמישי. הטיול ב-1.10 לגן החיות בתל אביב 🦁',
     time: 'היום, 09:12',
+    ts: new Date('2026-09-21T09:12:00').getTime(),
     likes: 11,
     readBy: 22,
     tags: ['event', 'announcement'],
@@ -135,6 +140,7 @@ export const initialMessages: ChatMessage[] = [
     authorName: 'תהילה שם טוב',
     text: 'היום בתנ״ך למדנו על משה ואהרון עמודים 51-58',
     time: 'היום, 10:20',
+    ts: new Date('2026-09-22T10:20:00').getTime(),
     likes: 6,
     readBy: 19,
     tags: ['assignment'],

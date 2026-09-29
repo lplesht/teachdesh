@@ -22,3 +22,14 @@ export function shiftDay(d: Date, days: number): Date {
   copy.setDate(copy.getDate() + days)
   return copy
 }
+
+// The label a WhatsApp-style date divider shows above a run of messages
+// from the same day - "היום"/"אתמול" for the two most recent days, the
+// full date otherwise.
+export function formatDayLabel(ts: number, now: Date = new Date()): string {
+  const d = new Date(ts)
+  const dayIso = toISO(d)
+  if (dayIso === toISO(now)) return 'היום'
+  if (dayIso === toISO(shiftDay(now, -1))) return 'אתמול'
+  return `${d.getDate()} ב${HEBREW_MONTHS[d.getMonth()]}`
+}
