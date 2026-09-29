@@ -83,6 +83,23 @@ export function TrashIcon({ className = defaultSize }: IconProps) {
   )
 }
 
+export function FilterIcon({ className = defaultSize }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M4 5h16l-6 7.5V18l-4 2v-7.5L4 5Z" />
+    </svg>
+  )
+}
+
+export function DownloadIcon({ className = defaultSize }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 3.5v11m0 0 4-4m-4 4-4-4" />
+      <path d="M4.5 17v2a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-2" />
+    </svg>
+  )
+}
+
 export function RosterIcon({ className = defaultSize }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>

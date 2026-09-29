@@ -71,6 +71,7 @@ export default function App() {
   const [role, setRole] = useState<Role>('parent')
   const [tab, setTab] = useState<TabId>('home')
   const [rosterOpen, setRosterOpen] = useState(false)
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
 
   const students = useRoster()
   const messages = useMessages()
@@ -162,6 +163,15 @@ export default function App() {
     void rsvpEventDoc(id, answer)
   }
 
+  // Jumps back to the chat message a routed card came from - clicking an
+  // assignment or announcement takes the parent straight to what the
+  // teacher actually wrote, instead of just the derived summary.
+  const openSourceMessage = (id?: string) => {
+    if (!id) return
+    setScrollToMessageId(id)
+    setTab('home')
+  }
+
   if (!firebaseReady) return <FirebaseSetupNotice />
 
   return (
@@ -179,12 +189,20 @@ export default function App() {
               onLike={likeMessage}
               onDelete={deleteMessage}
               onNavigate={setTab}
+              scrollToMessageId={scrollToMessageId}
+              onScrolledToMessage={() => setScrollToMessageId(null)}
             />
           )}
           {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
-          {tab === 'board' && <BoardTab assignments={assignments} unreadSince={unreadSince.board} />}
+          {tab === 'board' && (
+            <BoardTab assignments={assignments} unreadSince={unreadSince.board} onOpenSource={openSourceMessage} />
+          )}
           {tab === 'announcements' && (
-            <AnnouncementsTab announcements={announcements} unreadSince={unreadSince.announcements} />
+            <AnnouncementsTab
+              announcements={announcements}
+              unreadSince={unreadSince.announcements}
+              onOpenSource={openSourceMessage}
+            />
           )}
           {tab === 'gallery' && <GalleryTab photos={photos} />}
         </main>

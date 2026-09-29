@@ -11,6 +11,8 @@ interface Props {
   onLike: (id: string) => void
   onDelete: (id: string) => void
   onNavigate: (tab: TabId) => void
+  scrollToMessageId?: string | null
+  onScrolledToMessage?: () => void
 }
 
 const tagStyles: Record<DestinationTag, string> = {
@@ -28,14 +30,38 @@ const tagDestination: Partial<Record<DestinationTag, TabId>> = {
   gallery: 'gallery',
 }
 
-export default function ChatScreen({ messages, role, routingToast, onSend, onLike, onDelete, onNavigate }: Props) {
+export default function ChatScreen({
+  messages,
+  role,
+  routingToast,
+  onSend,
+  onLike,
+  onDelete,
+  onNavigate,
+  scrollToMessageId,
+  onScrolledToMessage,
+}: Props) {
   const [text, setText] = useState('')
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [messages.length])
+
+  // Jumping in from a routed assignment/announcement card - find that exact
+  // message and scroll to it instead of the usual scroll-to-bottom, with a
+  // brief highlight so it's obvious which bubble was linked to.
+  useEffect(() => {
+    if (!scrollToMessageId) return
+    const el = scrollRef.current?.querySelector(`[data-message-id="${scrollToMessageId}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightId(scrollToMessageId)
+    onScrolledToMessage?.()
+    const timer = setTimeout(() => setHighlightId(null), 2200)
+    return () => clearTimeout(timer)
+  }, [scrollToMessageId, onScrolledToMessage])
 
   const submit = () => {
     if (!text.trim()) return
@@ -56,7 +82,13 @@ export default function ChatScreen({ messages, role, routingToast, onSend, onLik
           const isTeacher = m.from === 'teacher'
           const shownTags = m.tags.filter((t) => t !== 'general')
           return (
-            <div key={m.id} className={`flex flex-col ${isTeacher ? 'items-start' : 'items-end'}`}>
+            <div
+              key={m.id}
+              data-message-id={m.id}
+              className={`flex flex-col rounded-2xl transition-colors duration-700 ${
+                highlightId === m.id ? '-mx-2 bg-amber-100/70 px-2 py-1' : ''
+              } ${isTeacher ? 'items-start' : 'items-end'}`}
+            >
               <div
                 className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
                   isTeacher ? 'rounded-ss-sm bg-leaf-100 text-slate-800' : 'rounded-se-sm border border-slate-100 bg-white text-slate-800'
