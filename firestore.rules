@@ -52,10 +52,22 @@ service cloud.firestore {
     match /classes/{classId}/messages/{messageId} {
       allow read: if isMember(classId);
       allow create, delete: if isTeacher(classId);
-      // Parents may only touch the like counter - everything else about a
-      // message (routing tags, text) is teacher-only.
+      // Parents may only toggle their own entry in likedBy (phone -> name) -
+      // never anyone else's, and nothing else about a message (routing
+      // tags, text) is theirs to touch.
       allow update: if isTeacher(classId)
-        || (isMember(classId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']));
+        || (isMember(classId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+            // Messages sent before this feature existed have no likedBy map
+            // yet - treat that as an empty one rather than erroring the diff.
+            && request.resource.data.likedBy.diff('likedBy' in resource.data ? resource.data.likedBy : {}).affectedKeys().hasOnly([mySession().phone]));
+    }
+
+    match /classes/{classId}/presence/{phone} {
+      // Simple online/last-seen heartbeat (src/presence.ts) - any class
+      // member can see who else is around, but only touch their own entry.
+      allow read: if isMember(classId);
+      allow write: if isMember(classId) && mySession().phone == phone;
     }
 
     match /classes/{classId}/events/{eventId} {

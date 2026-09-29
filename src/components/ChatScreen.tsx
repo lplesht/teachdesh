@@ -7,6 +7,7 @@ import { ChevronDownIcon, HeartIcon, TrashIcon } from './icons'
 interface Props {
   messages: ChatMessage[]
   role: Role
+  myPhone: string
   routingToast: string | null
   onSend: (text: string) => void
   onLike: (id: string) => void
@@ -59,6 +60,7 @@ function groupByDay(messages: ChatMessage[]): DayGroup[] {
 export default function ChatScreen({
   messages,
   role,
+  myPhone,
   routingToast,
   onSend,
   onLike,
@@ -70,6 +72,7 @@ export default function ChatScreen({
   const [text, setText] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
+  const [expandedLikesId, setExpandedLikesId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const dayGroups = useMemo(() => groupByDay(messages), [messages])
 
@@ -184,11 +187,21 @@ export default function ChatScreen({
                         <button
                           type="button"
                           onClick={() => onLike(m.id)}
-                          className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500"
+                          className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 transition hover:bg-rose-50 hover:text-rose-500 ${
+                            m.likedBy[myPhone] ? 'text-rose-500' : ''
+                          }`}
                         >
-                          <HeartIcon className="h-3.5 w-3.5" filled={m.likes > 0} />
-                          {m.likes}
+                          <HeartIcon className="h-3.5 w-3.5" filled={!!m.likedBy[myPhone]} />
                         </button>
+                        {m.likes > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedLikesId(expandedLikesId === m.id ? null : m.id)}
+                            className="hover:underline"
+                          >
+                            {m.likes}
+                          </button>
+                        )}
                         {isTeacher && m.readBy > 0 && <span>נקרא ע"י {m.readBy} הורים</span>}
                         {role === 'teacher' && (
                           <button
@@ -201,6 +214,10 @@ export default function ChatScreen({
                           </button>
                         )}
                       </div>
+
+                      {expandedLikesId === m.id && Object.keys(m.likedBy).length > 0 && (
+                        <p className="px-1 text-[10px] text-slate-400">אהבו: {Object.values(m.likedBy).join(', ')}</p>
+                      )}
                     </div>
                   )
                 })}

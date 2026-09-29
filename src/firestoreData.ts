@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   increment,
@@ -56,6 +57,7 @@ export function useMessages(classId: string | undefined): ChatMessage[] {
       setItems(
         snap.docs.map((d) => {
           const data = d.data()
+          const likedBy = (data.likedBy ?? {}) as Record<string, string>
           return {
             id: d.id,
             from: data.from,
@@ -63,7 +65,10 @@ export function useMessages(classId: string | undefined): ChatMessage[] {
             text: data.text,
             time: data.time,
             ts: data.ts ?? 0,
-            likes: data.likes ?? 0,
+            // Falls back to the old plain counter for messages liked before
+            // per-user tracking existed - they just won't have names to show.
+            likes: Object.keys(likedBy).length || data.likes || 0,
+            likedBy,
             readBy: data.readBy ?? 0,
             photoUrl: data.photoUrl ?? undefined,
             tags: (data.tags ?? []) as DestinationTag[],
@@ -252,7 +257,7 @@ export async function sendMessageDoc(
     authorName,
     text,
     time,
-    likes: 0,
+    likedBy: {},
     readBy: 0,
     photoUrl: null,
     tags: [],
@@ -267,9 +272,19 @@ export async function updateMessageTags(classId: string, id: string, tags: Desti
   await updateDoc(classDoc(classId, 'messages', id), { tags })
 }
 
-export async function likeMessageDoc(classId: string, id: string): Promise<void> {
+// Toggles this viewer's own like - the security rule only lets a parent
+// touch her own key inside likedBy, never anyone else's.
+export async function toggleLikeMessageDoc(
+  classId: string,
+  id: string,
+  phone: string,
+  displayName: string,
+  currentlyLiked: boolean,
+): Promise<void> {
   await ensureSignedIn()
-  await updateDoc(classDoc(classId, 'messages', id), { likes: increment(1) })
+  await updateDoc(classDoc(classId, 'messages', id), {
+    [`likedBy.${phone}`]: currentlyLiked ? deleteField() : displayName,
+  })
 }
 
 // Deletes the message plus everything it was routed to (events, assignments,

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAccessList, setAccessDoc, deleteAccessDoc, type AccessEntry } from '../firestoreData'
 import { normalizePhone } from '../auth/session'
+import { formatRelativeLastSeen, isOnline, usePresenceList } from '../presence'
 import { PencilIcon, TrashIcon } from './icons'
 
 interface Props {
@@ -14,6 +15,7 @@ function randomCode(): string {
 
 export default function AccessManagerModal({ classId, onClose }: Props) {
   const entries = useAccessList(classId)
+  const presence = usePresenceList(classId)
   const [phone, setPhone] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<'parent' | 'teacher'>('parent')
@@ -153,6 +155,13 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
                       </p>
                       <p className="text-xs text-slate-400">
                         {entry.phone} · קוד: {entry.code}
+                      </p>
+                      <p className={`text-[10px] font-semibold ${isOnline(presence[entry.phone]) ? 'text-leaf-600' : 'text-slate-400'}`}>
+                        {isOnline(presence[entry.phone])
+                          ? '🟢 מחובר/ת עכשיו'
+                          : presence[entry.phone]
+                            ? `נראה/תה לאחרונה ${formatRelativeLastSeen(presence[entry.phone])}`
+                            : 'מעולם לא התחבר/ה'}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">

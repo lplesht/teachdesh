@@ -11,6 +11,7 @@ export interface ChatMessage {
   time: string
   ts: number
   likes: number
+  likedBy: Record<string, string> // phone -> displayName, for who-liked-this + this viewer's own like state
   readBy: number
   photoUrl?: string
   tags: DestinationTag[]
@@ -98,6 +99,7 @@ export const initialMessages: ChatMessage[] = [
     time: '18:42',
     ts: new Date('2026-09-20T18:42:00').getTime(),
     likes: 14,
+    likedBy: {},
     readBy: 24,
     tags: ['event'],
   },
@@ -109,6 +111,7 @@ export const initialMessages: ChatMessage[] = [
     time: '18:45',
     ts: new Date('2026-09-20T18:45:00').getTime(),
     likes: 3,
+    likedBy: {},
     readBy: 0,
     tags: ['general'],
   },
@@ -120,6 +123,7 @@ export const initialMessages: ChatMessage[] = [
     time: '18:47',
     ts: new Date('2026-09-20T18:47:00').getTime(),
     likes: 9,
+    likedBy: {},
     readBy: 21,
     tags: ['announcement'],
   },
@@ -131,6 +135,7 @@ export const initialMessages: ChatMessage[] = [
     time: 'היום, 09:12',
     ts: new Date('2026-09-21T09:12:00').getTime(),
     likes: 11,
+    likedBy: {},
     readBy: 22,
     tags: ['event', 'announcement'],
   },
@@ -142,6 +147,7 @@ export const initialMessages: ChatMessage[] = [
     time: 'היום, 10:20',
     ts: new Date('2026-09-22T10:20:00').getTime(),
     likes: 6,
+    likedBy: {},
     readBy: 19,
     tags: ['assignment'],
   },

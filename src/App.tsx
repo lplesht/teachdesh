@@ -15,14 +15,15 @@ import { classifyWithLLM } from './llmClassify'
 import { firebaseReady } from './firebase'
 import { useMyAccess, useSession, logout } from './auth/session'
 import { CLASSES } from './classes'
+import { usePresenceHeartbeat } from './presence'
 import {
   addAnnouncementDoc,
   addAssignmentDoc,
   addEventDoc,
   deleteMessageDoc,
-  likeMessageDoc,
   rsvpEventDoc,
   sendMessageDoc,
+  toggleLikeMessageDoc,
   updateMessageTags,
   updateRosterDoc,
   useAnnouncements,
@@ -94,15 +95,27 @@ export default function App() {
   if (session === 'loading' || access === 'loading') return <LoadingScreen />
   if (session === null || access === null) return <LoginScreen />
 
-  return <SignedInApp classId={session.classId} role={access.role} displayName={access.displayName} />
+  return <SignedInApp classId={session.classId} phone={session.phone} role={access.role} displayName={access.displayName} />
 }
 
-function SignedInApp({ classId, role, displayName }: { classId: string; role: Role; displayName: string }) {
+function SignedInApp({
+  classId,
+  phone,
+  role,
+  displayName,
+}: {
+  classId: string
+  phone: string
+  role: Role
+  displayName: string
+}) {
   const [tab, setTab] = useState<TabId>('home')
   const [rosterOpen, setRosterOpen] = useState(false)
   const [accessManagerOpen, setAccessManagerOpen] = useState(false)
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
   const [highlightSourceId, setHighlightSourceId] = useState<string | null>(null)
+
+  usePresenceHeartbeat(classId, phone, displayName)
 
   const students = useRoster(classId)
   const messages = useMessages(classId)
@@ -198,7 +211,9 @@ function SignedInApp({ classId, role, displayName }: { classId: string; role: Ro
   }
 
   const likeMessage = (id: string) => {
-    void likeMessageDoc(classId, id)
+    const msg = messages.find((m) => m.id === id)
+    const currentlyLiked = !!msg?.likedBy[phone]
+    void toggleLikeMessageDoc(classId, id, phone, displayName, currentlyLiked)
   }
 
   const deleteMessage = (id: string) => {
@@ -246,6 +261,7 @@ function SignedInApp({ classId, role, displayName }: { classId: string; role: Ro
             <ChatScreen
               messages={messages}
               role={role}
+              myPhone={phone}
               routingToast={routingToast}
               onSend={sendMessage}
               onLike={likeMessage}
