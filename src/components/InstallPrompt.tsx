@@ -17,22 +17,34 @@ function isIOS(): boolean {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent)
 }
 
+// Captured at module scope (not inside the component) so `preventDefault()`
+// runs the moment the event fires, right from app startup - regardless of
+// whether the person is still on the login screen. <InstallPrompt> itself
+// only renders once signed in; without this, the browser's own install
+// mini-infobar would flash during login since nothing had suppressed it yet.
+let deferredInstallEvent: BeforeInstallPromptEvent | null = null
+let onDeferred: (() => void) | null = null
+
+if (!isStandalone()) {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    deferredInstallEvent = e as BeforeInstallPromptEvent
+    onDeferred?.()
+  })
+}
+
 // Android/desktop Chrome fire `beforeinstallprompt`, letting us trigger the
 // native install UI directly. iOS Safari has no such event - there, the
 // only path is Share -> "הוסף למסך הבית", so we just show a one-time tip.
 export default function InstallPrompt() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(deferredInstallEvent)
   const [showIosTip, setShowIosTip] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     if (isStandalone()) return
 
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault()
-      setDeferred(e as BeforeInstallPromptEvent)
-    }
-    window.addEventListener('beforeinstallprompt', onBeforeInstall)
+    onDeferred = () => setDeferred(deferredInstallEvent)
 
     if (isIOS()) {
       try {
@@ -42,7 +54,9 @@ export default function InstallPrompt() {
       }
     }
 
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall)
+    return () => {
+      onDeferred = null
+    }
   }, [])
 
   const dismissIosTip = () => {

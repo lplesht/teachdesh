@@ -177,9 +177,23 @@ function SignedInApp({ classId, role, displayName }: { classId: string; role: Ro
         ...result.announcements.map((a) => addAnnouncementDoc(classId, a, id, sentAt)),
       ])
 
-      const engineLabel =
-        result.engine === 'gemini' ? '🤖 Gemini' : `📋 חוקים (Gemini נכשל: ${llmOutcome.failReason ?? 'לא ידוע'})`
-      showToast(`${engineLabel} · נוסף אוטומטית ל: ${result.tags.map((t) => destinationLabel[t]).join(' + ')}`)
+      const routedNowhere = result.tags.length === 1 && result.tags[0] === 'general'
+      // Gemini legitimately finding nothing to route is a normal outcome,
+      // not a failure worth blaming on Gemini - only genuine errors
+      // (network, bad key, timeout, etc.) should be reported as such.
+      if (routedNowhere) {
+        showToast('לא נמצא סיווג מתאים, נשאר בצ׳אט')
+      } else if (result.engine === 'gemini') {
+        showToast(`🤖 Gemini · נוסף אוטומטית ל: ${result.tags.map((t) => destinationLabel[t]).join(' + ')}`)
+      } else if (llmOutcome.failReason === 'לא הוחזר תוכן שמיש') {
+        showToast(`📋 חוקים · נוסף אוטומטית ל: ${result.tags.map((t) => destinationLabel[t]).join(' + ')}`)
+      } else {
+        showToast(
+          `📋 חוקים (Gemini נכשל: ${llmOutcome.failReason ?? 'לא ידוע'}) · נוסף אוטומטית ל: ${result.tags
+            .map((t) => destinationLabel[t])
+            .join(' + ')}`,
+        )
+      }
     })()
   }
 
