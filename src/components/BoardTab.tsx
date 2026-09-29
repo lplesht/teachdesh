@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { AssignmentCard } from '../data'
-import { downloadCsv } from '../csvExport'
+import { downloadXlsx } from '../xlsxExport'
 import { DAY_FILTER_OPTIONS, matchesDayFilter, type DayFilterValue } from '../dayFilter'
 import { ClipboardIcon } from './icons'
 import ExpandableText from './ExpandableText'
@@ -50,7 +50,7 @@ export default function BoardTab({ assignments, unreadSince, onOpenSource }: Pro
     const rows = filteredBubbles.flatMap((b) =>
       b.items.map((a) => [`${b.weekday} ${b.dayLabel}`, a.subject, a.source ?? '', a.pages ?? '', a.content]),
     )
-    downloadCsv(`מטלות_${filterLabel}.csv`, ['תאריך', 'מקצוע', 'מקור', 'עמודים', 'תוכן'], rows)
+    downloadXlsx(`מטלות_${filterLabel}.xlsx`, ['תאריך', 'מקצוע', 'מקור', 'עמודים', 'תוכן'], rows)
   }
 
   return (

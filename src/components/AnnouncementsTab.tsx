@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { AnnouncementCard } from '../data'
-import { downloadCsv } from '../csvExport'
+import { downloadXlsx } from '../xlsxExport'
 import { DAY_FILTER_OPTIONS, matchesDayFilter, type DayFilterValue } from '../dayFilter'
 import { BellIcon } from './icons'
 import ExpandableText from './ExpandableText'
@@ -47,7 +47,7 @@ export default function AnnouncementsTab({ announcements, unreadSince, onOpenSou
   const handleExport = () => {
     const filterLabel = DAY_FILTER_OPTIONS.find((o) => o.value === filter)?.label ?? ''
     const rows = filteredBubbles.flatMap((b) => b.items.map((n) => [`${b.weekday} ${b.dayLabel}`, `${n.icon} ${n.text}`]))
-    downloadCsv(`הודעות_${filterLabel}.csv`, ['תאריך', 'תוכן'], rows)
+    downloadXlsx(`הודעות_${filterLabel}.xlsx`, ['תאריך', 'תוכן'], rows)
   }
 
   return (
