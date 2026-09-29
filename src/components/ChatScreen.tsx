@@ -251,7 +251,7 @@ export default function ChatScreen({
               </button>
             </div>
             <p className="mt-1.5 px-1 text-[10px] text-slate-400">
-              המערכת מסווגת אוטומטית אירועים, מטלות והודעות ללוחות המתאימים · Enter לשורה חדשה, Ctrl+Enter לשליחה
+              המערכת מסווגת אוטומטית אירועים, מטלות והודעות ללוחות המתאימים · Enter לשורה חדשה, Ctrl+Enter לשליחה · העלאת תמונות אינה זמינה כרגע
             </p>
           </>
         ) : (

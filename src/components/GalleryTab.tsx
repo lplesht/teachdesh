@@ -35,6 +35,9 @@ export default function GalleryTab({ photos, highlightSourceId, onHighlighted }:
         תמונות כיתתיות
       </h2>
       <p className="mb-4 text-xs text-slate-400">נאספות אוטומטית כשהמורה מצרפת תמונה לצ'אט</p>
+      <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
+        העלאת תמונות אינה זמינה כרגע
+      </p>
 
       {photos.length === 0 && (
         <p className="rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400">אין עדיין תמונות</p>
