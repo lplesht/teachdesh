@@ -1,13 +1,28 @@
 rules_version = '2';
 
-// TEMPORARY, simplified rules matching firestore.rules for now - any
-// signed-in (including anonymous) visitor can read/write class photos,
-// capped at 8MB. Harden alongside real auth in the next phase.
+// Mirrors firestore.rules: a class member (real session, not just anonymous
+// auth) may read; only that class's teacher may write, capped at 8MB and
+// images only.
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isMember(classId) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/sessions/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/sessions/$(request.auth.uid)).data.classId == classId;
+    }
+
+    function isTeacher(classId) {
+      let s = firestore.get(/databases/(default)/documents/sessions/$(request.auth.uid)).data;
+      return isMember(classId)
+        && firestore.get(/databases/(default)/documents/classes/$(classId)/access/$(s.phone)).data.role == 'teacher';
+    }
+
     match /classes/{classId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.resource.size < 8 * 1024 * 1024;
+      allow read: if isMember(classId);
+      allow write: if isTeacher(classId)
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
   }
 }

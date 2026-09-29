@@ -7,9 +7,14 @@ import BoardTab from './components/BoardTab'
 import AnnouncementsTab from './components/AnnouncementsTab'
 import GalleryTab from './components/GalleryTab'
 import RosterModal from './components/RosterModal'
+import LoginScreen from './components/LoginScreen'
+import AccessManagerModal from './components/AccessManagerModal'
+import InstallPrompt from './components/InstallPrompt'
 import { classifyMessage, destinationLabel } from './classify'
 import { classifyWithLLM } from './llmClassify'
 import { firebaseReady } from './firebase'
+import { useMyAccess, useSession, logout } from './auth/session'
+import { CLASSES } from './classes'
 import {
   addAnnouncementDoc,
   addAssignmentDoc,
@@ -29,11 +34,9 @@ import {
 } from './firestoreData'
 import type { Role, TabId } from './data'
 
-const TEACHER_NAME = 'תהילה שם טוב'
-
 // Which tabs show an unread-count badge, and how many of their items are
 // newer than the last time this viewer (per browser, via localStorage - no
-// real per-parent accounts yet) actually opened that tab.
+// per-parent read receipts yet) actually opened that tab.
 type BadgedTab = 'calendar' | 'board' | 'announcements'
 const BADGED_TABS: BadgedTab[] = ['calendar', 'board', 'announcements']
 
@@ -67,19 +70,48 @@ function FirebaseSetupNotice() {
   )
 }
 
+function LoadingScreen() {
+  return (
+    <div className="grid min-h-dvh place-items-center bg-slate-100" dir="rtl">
+      <p className="text-sm font-semibold text-slate-400">טוען...</p>
+    </div>
+  )
+}
+
 export default function App() {
-  const [role, setRole] = useState<Role>('parent')
+  const session = useSession()
+  const access = useMyAccess(session)
+
+  // A session can outlive its access doc (e.g. a teacher removed that
+  // entry) - the sessions/{uid} write rule only allows *create*, so a
+  // lingering session would otherwise permanently block re-login. Clear it
+  // automatically so the person just sees the login screen again.
+  useEffect(() => {
+    if (session !== 'loading' && session !== null && access === null) void logout()
+  }, [session, access])
+
+  if (!firebaseReady) return <FirebaseSetupNotice />
+  if (session === 'loading' || access === 'loading') return <LoadingScreen />
+  if (session === null || access === null) return <LoginScreen />
+
+  return <SignedInApp classId={session.classId} role={access.role} displayName={access.displayName} />
+}
+
+function SignedInApp({ classId, role, displayName }: { classId: string; role: Role; displayName: string }) {
   const [tab, setTab] = useState<TabId>('home')
   const [rosterOpen, setRosterOpen] = useState(false)
+  const [accessManagerOpen, setAccessManagerOpen] = useState(false)
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
   const [highlightSourceId, setHighlightSourceId] = useState<string | null>(null)
 
-  const students = useRoster()
-  const messages = useMessages()
-  const events = useEvents()
-  const assignments = useAssignments()
-  const announcements = useAnnouncements()
-  const photos = usePhotos()
+  const students = useRoster(classId)
+  const messages = useMessages(classId)
+  const events = useEvents(classId)
+  const assignments = useAssignments(classId)
+  const announcements = useAnnouncements(classId)
+  const photos = usePhotos(classId)
+
+  const classInfo = CLASSES[classId]
 
   const [seenTs, setSeenTsState] = useState<Record<BadgedTab, number>>(() => ({
     calendar: getSeenTs('calendar'),
@@ -133,16 +165,16 @@ export default function App() {
     const sentAt = new Date()
 
     void (async () => {
-      const { id } = await sendMessageDoc('teacher', TEACHER_NAME, text, time)
+      const { id } = await sendMessageDoc(classId, 'teacher', displayName, text, time)
 
       const llmOutcome = await classifyWithLLM(text, false, sentAt)
       const result = llmOutcome.result ?? classifyMessage(text, false, sentAt)
 
-      await updateMessageTags(id, result.tags)
+      await updateMessageTags(classId, id, result.tags)
       await Promise.all([
-        ...result.events.map((e) => addEventDoc(e, id)),
-        ...result.assignments.map((a) => addAssignmentDoc(a, id, sentAt)),
-        ...result.announcements.map((a) => addAnnouncementDoc(a, id, sentAt)),
+        ...result.events.map((e) => addEventDoc(classId, e, id)),
+        ...result.assignments.map((a) => addAssignmentDoc(classId, a, id, sentAt)),
+        ...result.announcements.map((a) => addAnnouncementDoc(classId, a, id, sentAt)),
       ])
 
       const engineLabel =
@@ -152,16 +184,16 @@ export default function App() {
   }
 
   const likeMessage = (id: string) => {
-    void likeMessageDoc(id)
+    void likeMessageDoc(classId, id)
   }
 
   const deleteMessage = (id: string) => {
     if (!window.confirm('למחוק את ההודעה? היא תוסר גם מכל הלוחות שאליהם נותבה (מטלות/יומן/הודעות/גלריה).')) return
-    void deleteMessageDoc(id)
+    void deleteMessageDoc(classId, id)
   }
 
   const rsvpEvent = (id: string, answer: 'yes' | 'no') => {
-    void rsvpEventDoc(id, answer)
+    void rsvpEventDoc(classId, id, answer)
   }
 
   // Jumps back to the chat message a routed card came from - clicking an
@@ -180,12 +212,20 @@ export default function App() {
     setTab(destination)
   }
 
-  if (!firebaseReady) return <FirebaseSetupNotice />
-
   return (
     <div className="min-h-dvh bg-slate-200 sm:flex sm:items-center sm:justify-center sm:p-8">
       <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f6fb] sm:h-[860px] sm:rounded-[2.5rem] sm:shadow-2xl sm:ring-8 sm:ring-slate-900/90">
-        <Header role={role} onRoleChange={setRole} studentsCount={students.length} onOpenRoster={() => setRosterOpen(true)} />
+        <Header
+          classInfo={classInfo}
+          role={role}
+          displayName={displayName}
+          studentsCount={students.length}
+          onOpenRoster={() => setRosterOpen(true)}
+          onOpenAccessManager={() => setAccessManagerOpen(true)}
+          onLogout={() => void logout()}
+        />
+
+        <InstallPrompt />
 
         <main className="min-h-0 flex-1">
           {tab === 'home' && (
@@ -241,8 +281,13 @@ export default function App() {
       </div>
 
       {rosterOpen && (
-        <RosterModal students={students} onClose={() => setRosterOpen(false)} onUpdate={(names) => void updateRosterDoc(names)} />
+        <RosterModal
+          students={students}
+          onClose={() => setRosterOpen(false)}
+          onUpdate={(names) => void updateRosterDoc(classId, names)}
+        />
       )}
+      {accessManagerOpen && <AccessManagerModal classId={classId} onClose={() => setAccessManagerOpen(false)} />}
     </div>
   )
 }

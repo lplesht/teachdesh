@@ -30,9 +30,6 @@ if (firebaseReady) {
 
 export { db, auth }
 
-// Single fixed class for now - no multi-class picker or real login yet.
-export const CLASS_ID = 'g4'
-
 let signInPromise: Promise<void> | null = null
 
 // No login UI yet - every visitor (teacher or parent) is signed in anonymously

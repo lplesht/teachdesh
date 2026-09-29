@@ -1,14 +1,26 @@
-import { classInfo, type Role } from '../data'
-import { RosterIcon } from './icons'
+import type { ClassInfo } from '../classes'
+import type { Role } from '../data'
+import { KeyIcon, RosterIcon } from './icons'
 
 interface Props {
+  classInfo: ClassInfo
   role: Role
-  onRoleChange: (role: Role) => void
+  displayName: string
   studentsCount: number
   onOpenRoster: () => void
+  onOpenAccessManager: () => void
+  onLogout: () => void
 }
 
-export default function Header({ role, onRoleChange, studentsCount, onOpenRoster }: Props) {
+export default function Header({
+  classInfo,
+  role,
+  displayName,
+  studentsCount,
+  onOpenRoster,
+  onOpenAccessManager,
+  onLogout,
+}: Props) {
   return (
     <header className="shrink-0 border-b border-slate-200/80 bg-white/95 px-4 pb-2.5 pt-3 backdrop-blur">
       <div className="flex items-center justify-between gap-2">
@@ -25,14 +37,24 @@ export default function Header({ role, onRoleChange, studentsCount, onOpenRoster
         </div>
 
         {role === 'teacher' && (
-          <button
-            type="button"
-            onClick={onOpenRoster}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
-            aria-label="עדכון דף קשר"
-          >
-            <RosterIcon className="h-[18px] w-[18px]" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onOpenAccessManager}
+              className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+              aria-label="ניהול הרשאות"
+            >
+              <KeyIcon className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenRoster}
+              className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+              aria-label="עדכון דף קשר"
+            >
+              <RosterIcon className="h-[18px] w-[18px]" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -41,24 +63,12 @@ export default function Header({ role, onRoleChange, studentsCount, onOpenRoster
           {studentsCount} תלמידים · לפי דף הקשר
         </span>
 
-        <div className="flex items-center rounded-full bg-slate-100 p-1 text-[11px] font-semibold">
-          <button
-            type="button"
-            onClick={() => onRoleChange('parent')}
-            className={`rounded-full px-2.5 py-1 transition ${
-              role === 'parent' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'
-            }`}
-          >
-            הורה
-          </button>
-          <button
-            type="button"
-            onClick={() => onRoleChange('teacher')}
-            className={`rounded-full px-2.5 py-1 transition ${
-              role === 'teacher' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500'
-            }`}
-          >
-            מורה
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[11px] font-semibold text-slate-500">
+            {displayName} · {role === 'teacher' ? 'מורה' : 'הורה'}
+          </span>
+          <button type="button" onClick={onLogout} className="shrink-0 text-[11px] font-bold text-rose-600">
+            התנתקות
           </button>
         </div>
       </div>

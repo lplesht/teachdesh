@@ -3,13 +3,6 @@ import type { DestinationTag } from './classify'
 export type Role = 'parent' | 'teacher'
 export type TabId = 'home' | 'calendar' | 'board' | 'announcements' | 'gallery'
 
-export interface ClassInfo {
-  className: string
-  schoolName: string
-  teacherName: string
-  teacherInitials: string
-}
-
 export interface ChatMessage {
   id: string
   from: 'teacher' | 'parent'
@@ -85,13 +78,6 @@ export interface Photo {
   emoji: string
   imageUrl?: string
   sourceMessageId?: string
-}
-
-export const classInfo: ClassInfo = {
-  className: 'ג׳ 4',
-  schoolName: 'בית ספר יסודי "הרצוג"',
-  teacherName: 'תהילה שם טוב',
-  teacherInitials: 'תש',
 }
 
 export const initialStudents: string[] = [

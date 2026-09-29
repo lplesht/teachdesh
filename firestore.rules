@@ -1,15 +1,76 @@
 rules_version = '2';
 
-// TEMPORARY, simplified rules for the initial Firebase cutover: every
-// visitor signs in anonymously (see src/firebase.ts), and any signed-in
-// user can read/write the single class's data. There is no real teacher
-// vs. parent distinction enforced yet - the "role" toggle in the app is
-// still just a UI switch. Real per-role accounts + an allow-list are the
-// next phase; harden these rules when that lands.
+// Real access control: every visitor signs in anonymously (src/firebase.ts),
+// then must hold a sessions/{uid} doc created by a successful phone+code
+// login (src/auth/session.ts). The session only stores {classId, phone} -
+// role always comes from following sessions/{uid} -> classes/{classId}/access/{phone},
+// never from the client, so nobody can claim their own role.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /classes/{classId}/{document=**} {
-      allow read, write: if request.auth != null;
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasSession() {
+      return signedIn() && exists(/databases/$(database)/documents/sessions/$(request.auth.uid));
+    }
+
+    function mySession() {
+      return get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data;
+    }
+
+    function isMember(classId) {
+      return hasSession() && mySession().classId == classId;
+    }
+
+    function myAccessDoc(classId) {
+      let s = mySession();
+      return get(/databases/$(database)/documents/classes/$(classId)/access/$(s.phone)).data;
+    }
+
+    function isTeacher(classId) {
+      return isMember(classId) && myAccessDoc(classId).role == 'teacher';
+    }
+
+    match /sessions/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      // The write itself is the code check: it succeeds only if `code`
+      // matches the stored access doc's code for that classId+phone.
+      allow create: if signedIn() && request.auth.uid == uid
+        && get(/databases/$(database)/documents/classes/$(request.resource.data.classId)/access/$(request.resource.data.phone)).data.code == request.resource.data.code;
+      allow update: if false; // re-login = delete then create fresh
+    }
+
+    match /classes/{classId}/access/{phone} {
+      // A parent may read only her own entry (to know her own role/display
+      // name); a teacher may read/list/write the whole class's list.
+      allow read: if isMember(classId) && (mySession().phone == phone || myAccessDoc(classId).role == 'teacher');
+      allow write: if isTeacher(classId);
+    }
+
+    match /classes/{classId}/messages/{messageId} {
+      allow read: if isMember(classId);
+      allow create, delete: if isTeacher(classId);
+      // Parents may only touch the like counter - everything else about a
+      // message (routing tags, text) is teacher-only.
+      allow update: if isTeacher(classId)
+        || (isMember(classId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']));
+    }
+
+    match /classes/{classId}/events/{eventId} {
+      allow read: if isMember(classId);
+      allow create, delete: if isTeacher(classId);
+      // Parents may only adjust the RSVP counters.
+      allow update: if isTeacher(classId)
+        || (isMember(classId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpYes', 'rsvpNo']));
+    }
+
+    // Everything else under a class (assignments, announcements, photos,
+    // meta/roster) - members read, only the teacher writes.
+    match /classes/{classId}/{collection}/{docId} {
+      allow read: if isMember(classId);
+      allow write: if isTeacher(classId);
     }
   }
 }

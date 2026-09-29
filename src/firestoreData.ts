@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   increment,
@@ -14,18 +15,21 @@ import {
   writeBatch,
   type DocumentData,
 } from 'firebase/firestore'
-import { CLASS_ID, db, ensureSignedIn } from './firebase'
+import { db, ensureSignedIn } from './firebase'
 import type { DestinationTag } from './classify'
 import type { AnnouncementMeta, AssignmentMeta, EventMeta } from './classify'
 import type { AnnouncementCard, AssignmentCard, ChatMessage, EventCard, Photo } from './data'
 import { toISO, weekdayName } from './dateUtils'
 
-function classCollection(name: string) {
-  return collection(db!, 'classes', CLASS_ID, name)
+// Every collection here lives under a specific class - classId is threaded
+// through explicitly (rather than a fixed constant) so the same app instance
+// can serve more than one class's data, keyed by the signed-in session.
+function classCollection(classId: string, name: string) {
+  return collection(db!, 'classes', classId, name)
 }
 
-function classDoc(name: string, id: string) {
-  return doc(db!, 'classes', CLASS_ID, name, id)
+function classDoc(classId: string, name: string, id: string) {
+  return doc(db!, 'classes', classId, name, id)
 }
 
 function localRsvpKey(eventId: string): string {
@@ -43,11 +47,11 @@ function getLocalRsvp(eventId: string): 'yes' | 'no' | null {
 
 // --- Live reads ---
 
-export function useMessages(): ChatMessage[] {
+export function useMessages(classId: string | undefined): ChatMessage[] {
   const [items, setItems] = useState<ChatMessage[]>([])
   useEffect(() => {
-    if (!db) return
-    const q = query(classCollection('messages'), orderBy('ts', 'asc'))
+    if (!db || !classId) return
+    const q = query(classCollection(classId, 'messages'), orderBy('ts', 'asc'))
     return onSnapshot(q, (snap) => {
       setItems(
         snap.docs.map((d) => {
@@ -66,15 +70,15 @@ export function useMessages(): ChatMessage[] {
         }),
       )
     })
-  }, [])
+  }, [classId])
   return items
 }
 
-export function useEvents(): EventCard[] {
+export function useEvents(classId: string | undefined): EventCard[] {
   const [items, setItems] = useState<EventCard[]>([])
   useEffect(() => {
-    if (!db) return
-    const q = query(classCollection('events'), orderBy('ts', 'desc'))
+    if (!db || !classId) return
+    const q = query(classCollection(classId, 'events'), orderBy('ts', 'desc'))
     return onSnapshot(q, (snap) => {
       setItems(
         snap.docs.map((d) => {
@@ -96,15 +100,15 @@ export function useEvents(): EventCard[] {
         }),
       )
     })
-  }, [])
+  }, [classId])
   return items
 }
 
-export function useAssignments(): AssignmentCard[] {
+export function useAssignments(classId: string | undefined): AssignmentCard[] {
   const [items, setItems] = useState<AssignmentCard[]>([])
   useEffect(() => {
-    if (!db) return
-    const q = query(classCollection('assignments'), orderBy('ts', 'desc'))
+    if (!db || !classId) return
+    const q = query(classCollection(classId, 'assignments'), orderBy('ts', 'desc'))
     return onSnapshot(q, (snap) => {
       setItems(
         snap.docs.map((d) => {
@@ -125,15 +129,15 @@ export function useAssignments(): AssignmentCard[] {
         }),
       )
     })
-  }, [])
+  }, [classId])
   return items
 }
 
-export function useAnnouncements(): AnnouncementCard[] {
+export function useAnnouncements(classId: string | undefined): AnnouncementCard[] {
   const [items, setItems] = useState<AnnouncementCard[]>([])
   useEffect(() => {
-    if (!db) return
-    const q = query(classCollection('announcements'), orderBy('ts', 'desc'))
+    if (!db || !classId) return
+    const q = query(classCollection(classId, 'announcements'), orderBy('ts', 'desc'))
     return onSnapshot(q, (snap) => {
       setItems(
         snap.docs.map((d) => {
@@ -151,15 +155,15 @@ export function useAnnouncements(): AnnouncementCard[] {
         }),
       )
     })
-  }, [])
+  }, [classId])
   return items
 }
 
-export function usePhotos(): Photo[] {
+export function usePhotos(classId: string | undefined): Photo[] {
   const [items, setItems] = useState<Photo[]>([])
   useEffect(() => {
-    if (!db) return
-    const q = query(classCollection('photos'), orderBy('ts', 'desc'))
+    if (!db || !classId) return
+    const q = query(classCollection(classId, 'photos'), orderBy('ts', 'desc'))
     return onSnapshot(q, (snap) => {
       setItems(
         snap.docs.map((d) => {
@@ -176,25 +180,65 @@ export function usePhotos(): Photo[] {
         }),
       )
     })
-  }, [])
+  }, [classId])
   return items
 }
 
-export function useRoster(): string[] {
+export function useRoster(classId: string | undefined): string[] {
   const [names, setNames] = useState<string[]>([])
   useEffect(() => {
-    if (!db) return
-    return onSnapshot(classDoc('meta', 'roster'), (snap) => {
+    if (!db || !classId) return
+    return onSnapshot(classDoc(classId, 'meta', 'roster'), (snap) => {
       const data = snap.data() as DocumentData | undefined
       setNames(data?.names ?? [])
     })
-  }, [])
+  }, [classId])
   return names
+}
+
+export interface AccessEntry {
+  phone: string
+  code: string
+  role: 'teacher' | 'parent'
+  displayName: string
+}
+
+// The teacher-managed allow-list this class's login screen checks against -
+// see src/auth/session.ts for how a phone+code pair turns into a session.
+export function useAccessList(classId: string | undefined): AccessEntry[] {
+  const [items, setItems] = useState<AccessEntry[]>([])
+  useEffect(() => {
+    if (!db || !classId) return
+    return onSnapshot(classCollection(classId, 'access'), (snap) => {
+      setItems(
+        snap.docs.map((d) => {
+          const data = d.data()
+          return { phone: d.id, code: data.code, role: data.role, displayName: data.displayName }
+        }),
+      )
+    })
+  }, [classId])
+  return items
+}
+
+export async function setAccessDoc(classId: string, entry: AccessEntry): Promise<void> {
+  await ensureSignedIn()
+  await setDoc(classDoc(classId, 'access', entry.phone), {
+    code: entry.code,
+    role: entry.role,
+    displayName: entry.displayName,
+  })
+}
+
+export async function deleteAccessDoc(classId: string, phone: string): Promise<void> {
+  await ensureSignedIn()
+  await deleteDoc(classDoc(classId, 'access', phone))
 }
 
 // --- Writes ---
 
 export async function sendMessageDoc(
+  classId: string,
   from: 'teacher' | 'parent',
   authorName: string,
   text: string,
@@ -202,7 +246,7 @@ export async function sendMessageDoc(
 ): Promise<{ id: string }> {
   await ensureSignedIn()
 
-  const docRef = await addDoc(classCollection('messages'), {
+  const docRef = await addDoc(classCollection(classId, 'messages'), {
     from,
     authorName,
     text,
@@ -217,14 +261,14 @@ export async function sendMessageDoc(
   return { id: docRef.id }
 }
 
-export async function updateMessageTags(id: string, tags: DestinationTag[]): Promise<void> {
+export async function updateMessageTags(classId: string, id: string, tags: DestinationTag[]): Promise<void> {
   await ensureSignedIn()
-  await updateDoc(classDoc('messages', id), { tags })
+  await updateDoc(classDoc(classId, 'messages', id), { tags })
 }
 
-export async function likeMessageDoc(id: string): Promise<void> {
+export async function likeMessageDoc(classId: string, id: string): Promise<void> {
   await ensureSignedIn()
-  await updateDoc(classDoc('messages', id), { likes: increment(1) })
+  await updateDoc(classDoc(classId, 'messages', id), { likes: increment(1) })
 }
 
 // Deletes the message plus everything it was routed to (events, assignments,
@@ -232,24 +276,24 @@ export async function likeMessageDoc(id: string): Promise<void> {
 // orphaned cards behind on the other tabs.
 const DERIVED_COLLECTIONS = ['events', 'assignments', 'announcements', 'photos']
 
-export async function deleteMessageDoc(id: string): Promise<void> {
+export async function deleteMessageDoc(classId: string, id: string): Promise<void> {
   await ensureSignedIn()
 
   const derivedSnaps = await Promise.all(
-    DERIVED_COLLECTIONS.map((name) => getDocs(query(classCollection(name), where('sourceMessageId', '==', id)))),
+    DERIVED_COLLECTIONS.map((name) => getDocs(query(classCollection(classId, name), where('sourceMessageId', '==', id)))),
   )
 
   const batch = writeBatch(db!)
   for (const snap of derivedSnaps) {
     for (const d of snap.docs) batch.delete(d.ref)
   }
-  batch.delete(classDoc('messages', id))
+  batch.delete(classDoc(classId, 'messages', id))
   await batch.commit()
 }
 
-export async function addEventDoc(meta: EventMeta, sourceMessageId: string): Promise<void> {
+export async function addEventDoc(classId: string, meta: EventMeta, sourceMessageId: string): Promise<void> {
   await ensureSignedIn()
-  await addDoc(classCollection('events'), {
+  await addDoc(classCollection(classId, 'events'), {
     title: meta.title,
     date: meta.date,
     dateIso: meta.dateIso ?? null,
@@ -266,9 +310,14 @@ export async function addEventDoc(meta: EventMeta, sourceMessageId: string): Pro
 // The bubble a teacher's assignment lands in is the day it was *given*
 // (the message's send time), not any date mentioned in its text - so that
 // gets computed here from `sentAt`, independent of what the classifier found.
-export async function addAssignmentDoc(meta: AssignmentMeta, sourceMessageId: string, sentAt: Date): Promise<void> {
+export async function addAssignmentDoc(
+  classId: string,
+  meta: AssignmentMeta,
+  sourceMessageId: string,
+  sentAt: Date,
+): Promise<void> {
   await ensureSignedIn()
-  await addDoc(classCollection('assignments'), {
+  await addDoc(classCollection(classId, 'assignments'), {
     subject: meta.subject,
     source: meta.source ?? null,
     pages: meta.pages ?? null,
@@ -285,9 +334,14 @@ export async function addAssignmentDoc(meta: AssignmentMeta, sourceMessageId: st
 // The bubble an announcement lands in is the day it was *sent* (the
 // message's send time), not any date mentioned in its text ("bring this by
 // tomorrow") - so that gets computed here from `sentAt`, same as assignments.
-export async function addAnnouncementDoc(meta: AnnouncementMeta, sourceMessageId: string, sentAt: Date): Promise<void> {
+export async function addAnnouncementDoc(
+  classId: string,
+  meta: AnnouncementMeta,
+  sourceMessageId: string,
+  sentAt: Date,
+): Promise<void> {
   await ensureSignedIn()
-  await addDoc(classCollection('announcements'), {
+  await addDoc(classCollection(classId, 'announcements'), {
     text: meta.text,
     icon: meta.icon,
     dayIso: toISO(sentAt),
@@ -300,7 +354,7 @@ export async function addAnnouncementDoc(meta: AnnouncementMeta, sourceMessageId
 
 // RSVP counters are shared in Firestore; *which* answer this viewer gave is
 // tracked locally only (no real per-parent accounts yet to store it against).
-export async function rsvpEventDoc(id: string, answer: 'yes' | 'no'): Promise<void> {
+export async function rsvpEventDoc(classId: string, id: string, answer: 'yes' | 'no'): Promise<void> {
   await ensureSignedIn()
   const previous = getLocalRsvp(id)
   if (previous === answer) return
@@ -310,7 +364,7 @@ export async function rsvpEventDoc(id: string, answer: 'yes' | 'no'): Promise<vo
   if (previous === 'no') updates.rsvpNo = increment(-1)
   updates[answer === 'yes' ? 'rsvpYes' : 'rsvpNo'] = increment(1)
 
-  await updateDoc(classDoc('events', id), updates)
+  await updateDoc(classDoc(classId, 'events', id), updates)
   try {
     localStorage.setItem(localRsvpKey(id), answer)
   } catch {
@@ -318,7 +372,7 @@ export async function rsvpEventDoc(id: string, answer: 'yes' | 'no'): Promise<vo
   }
 }
 
-export async function updateRosterDoc(names: string[]): Promise<void> {
+export async function updateRosterDoc(classId: string, names: string[]): Promise<void> {
   await ensureSignedIn()
-  await setDoc(classDoc('meta', 'roster'), { names })
+  await setDoc(classDoc(classId, 'meta', 'roster'), { names })
 }
