@@ -4,6 +4,7 @@ import {
   assignmentIcon,
   cleanLine,
   eventIcon,
+  extractPages,
   extractSource,
   extractSubject,
   finalizeResult,
@@ -24,6 +25,7 @@ interface LLMSegment {
   lines: number[]
   subject?: string
   source?: string
+  pages?: string
 }
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
@@ -70,9 +72,15 @@ const PROMPT = `זהו החלק הכי חשוב במערכת הזו - הניתו
 - category: אחת משלוש הקטגוריות.
 - lines: מערך של מספרי השורות (מספרים שלמים בלבד) ששייכים למקטע הזה.
 - subject: (רק למקטעי assignment) שם המקצוע, למשל: חשבון, שפה, תנ"ך, אנגלית. אם המטלה אינה קשורה למקצוע ספציפי, כתבי "${GENERAL_SUBJECT}".
-- source: (רק למקטעי assignment, אם רלוונטי) איפה המשימה נמצאת בפועל - שם הטקסט/הסיפור שחולק לתלמידים, שם החוברת, או שם האתר. השאירי ריק אם לא מוזכר מקור ספציפי (למשל עמודים בספר לימוד רגיל).
+- source: (רק למקטעי assignment, אם רלוונטי) המקור הפיזי/דיגיטלי של המטלה - סווגי אותו לאחת מארבע האפשרויות הבאות בלבד, בפורמט "סוג - שם":
+  - "חוברת - <שם החוברת>" אם מוזכרת חוברת עבודה. אם לא צוין שם ספציפי, כתבי "חוברת - חוברת עבודה".
+  - "ספר - <שם הספר>" אם מוזכר ספר לימוד. אם לא צוין שם ספציפי, כתבי "ספר - ספר לימוד".
+  - "דפים שחולקו - <נושא הדפים>" אם מדובר בדף/דפים שחולקו/הודפסו לתלמידים (לא מתוך ספר/חוברת קיימים) - הנושא הוא תיאור קצר של תוכן הדף.
+  - "אתר אינטרנט - <שם האתר>" אם מוזכר אתר או פלטפורמה דיגיטלית.
+  השאירי ריק אם אין שום מקור פיזי/דיגיטלי מוזכר (למשל "עמודים 51-58" בלי הקשר לחוברת/ספר/דף/אתר - זה הולך לשדה pages, לא לשדה source).
+- pages: (רק למקטעי assignment, אם רלוונטי) מספר עמוד או טווח עמודים שהוזכר, בדיוק כפי שנכתב, למשל "51-58" או "12". השאירי ריק אם לא הוזכרו עמודים בכלל - אל תמציאי טווח עמודים שלא נכתב.
 
-החזירי אך ורק מערך JSON תקין במבנה [{ "category": "...", "lines": [0, 3, 7], "subject": "...", "source": "..." }], ללא הסבר וללא markdown.`
+החזירי אך ורק מערך JSON תקין במבנה [{ "category": "...", "lines": [0, 3, 7], "subject": "...", "source": "...", "pages": "..." }], ללא הסבר וללא markdown.`
 
 function splitLines(text: string): string[] {
   return text
@@ -97,6 +105,7 @@ function buildRequestBody(lines: string[]) {
             lines: { type: 'ARRAY', items: { type: 'INTEGER' } },
             subject: { type: 'STRING' },
             source: { type: 'STRING' },
+            pages: { type: 'STRING' },
           },
           required: ['category', 'lines'],
         },
@@ -166,6 +175,7 @@ function buildMetasFromSegments(segments: LLMSegment[], lines: string[], sentAt:
       assignments.push({
         subject: seg.subject?.trim() || GENERAL_SUBJECT,
         source: seg.source?.trim() || extractSource(text),
+        pages: seg.pages?.trim() || extractPages(text),
         content: text,
         icon: iconMatch?.icon ?? assignmentIcon(text),
       })

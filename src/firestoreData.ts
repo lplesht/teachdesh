@@ -113,6 +113,7 @@ export function useAssignments(): AssignmentCard[] {
             id: d.id,
             subject: data.subject,
             source: data.source ?? undefined,
+            pages: data.pages ?? undefined,
             content: data.content,
             icon: data.icon,
             dayIso: data.dayIso ?? '',
@@ -270,6 +271,7 @@ export async function addAssignmentDoc(meta: AssignmentMeta, sourceMessageId: st
   await addDoc(classCollection('assignments'), {
     subject: meta.subject,
     source: meta.source ?? null,
+    pages: meta.pages ?? null,
     content: meta.content,
     icon: meta.icon,
     dayIso: toISO(sentAt),

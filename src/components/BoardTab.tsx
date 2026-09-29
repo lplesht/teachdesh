@@ -70,6 +70,11 @@ export default function BoardTab({ assignments }: Props) {
                           מקור: {a.source}
                         </span>
                       )}
+                      {a.pages && (
+                        <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                          עמודים: {a.pages}
+                        </span>
+                      )}
                     </div>
                     <ExpandableText text={a.content} className="text-sm leading-relaxed text-slate-800" />
                   </div>

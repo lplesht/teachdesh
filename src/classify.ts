@@ -14,6 +14,7 @@ export interface EventMeta {
 export interface AssignmentMeta {
   subject: string
   source?: string
+  pages?: string
   content: string
   icon: string
 }
@@ -168,20 +169,35 @@ export function assignmentIcon(text: string): string {
 
 const QUOTE_RE = /["״"]([^"״"”]{2,40})["״"”]/
 
-// Best-effort: identify what the assignment is actually based on - a named
-// text handed to students, a workbook, or a website - so parents know where
-// to go, not just what the topic is.
+// Best-effort: identify what the assignment is actually based on, classified
+// into exactly one of four kinds parents can act on - a workbook, a
+// textbook, loose pages handed out in class, or a website - each with its
+// name when one is mentioned. Kept as a single "kind - name" string so the
+// LLM path (which produces the same shape) and this fallback stay consistent.
 export function extractSource(text: string): string | undefined {
   const quoted = text.match(QUOTE_RE)
-  if (quoted) {
-    const name = quoted[1].replace(/\*/g, '').trim()
-    if (text.includes('חוברת')) return `חוברת: ${name}`
-    if (name) return `טקסט: ${name}`
+  const quotedName = quoted ? quoted[1].replace(/\*/g, '').trim() : undefined
+
+  if (text.includes('חוברת')) return `חוברת - ${quotedName ?? 'חוברת עבודה'}`
+  if (/(דף|דפים)/.test(text) && /(חולק|חולקו|שחולק|שחולקו|הודפס|הודפסו)/.test(text)) {
+    return `דפים שחולקו - ${quotedName ?? 'דף עבודה'}`
   }
-  const siteMatch = text.match(/אתר\s+([א-ת]+)/)
-  if (siteMatch) return `אתר ${siteMatch[1]}`
-  if (text.includes('חוברת')) return 'חוברת עבודה'
+  const siteMatch = text.match(/אתר\s+([א-ת\d.]+)/)
+  if (siteMatch) return `אתר אינטרנט - ${siteMatch[1]}`
+  if (text.includes('ספר')) return `ספר - ${quotedName ?? 'ספר לימוד'}`
+  if (quotedName) return `טקסט - ${quotedName}`
   return undefined
+}
+
+const PAGES_RE = /עמוד(?:ים)?\s*(\d{1,3}(?:\s*[-–]\s*\d{1,3})?)/
+
+// Pulled out separately from `source` since a page range can be mentioned
+// with or without a named source ("עמודים 51-58" alone, or inside a book/
+// workbook reference) - parents should only see this badge when a page
+// number was actually mentioned, never a guessed one.
+export function extractPages(text: string): string | undefined {
+  const m = text.match(PAGES_RE)
+  return m ? m[1].replace(/\s+/g, '') : undefined
 }
 
 export function announcementIcon(text: string): string {
@@ -253,6 +269,7 @@ export function classifyMessage(text: string, hasPhoto: boolean, sentAt: Date = 
     assignments.push({
       subject: subjectFallback?.label ?? GENERAL_SUBJECT,
       source: extractSource(combined),
+      pages: extractPages(combined),
       content: combined,
       icon: subjectFallback?.icon ?? assignmentIcon(combined),
     })

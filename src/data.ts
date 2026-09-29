@@ -41,6 +41,7 @@ export interface AssignmentCard {
   id: string
   subject: string
   source?: string
+  pages?: string
   content: string
   icon: string
   // The day the assignment was *given* (derived from the message's send
@@ -199,7 +200,8 @@ export const initialAssignments: AssignmentCard[] = [
   {
     id: 'a1',
     subject: 'תנ"ך',
-    source: 'ספר התנ"ך, עמודים 51-58',
+    source: 'ספר - ספר התנ"ך',
+    pages: '51-58',
     content: 'למדנו על משה ואהרון, עמודים 51-58',
     icon: '📖',
     dayIso: '2026-09-22',
