@@ -1,16 +1,33 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Photo } from '../data'
 import { ImageIcon } from './icons'
 
 interface Props {
   photos: Photo[]
+  highlightSourceId?: string | null
+  onHighlighted?: () => void
 }
 
-export default function GalleryTab({ photos }: Props) {
+export default function GalleryTab({ photos, highlightSourceId, onHighlighted }: Props) {
   const [active, setActive] = useState<Photo | null>(null)
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Arriving here from a routing-tag click in the chat - scroll to the
+  // photo that message produced and flash it briefly.
+  useEffect(() => {
+    if (!highlightSourceId) return
+    const el = scrollRef.current?.querySelector(`[data-source-id="${highlightSourceId}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setActiveHighlight(highlightSourceId)
+    onHighlighted?.()
+    const timer = setTimeout(() => setActiveHighlight(null), 2200)
+    return () => clearTimeout(timer)
+  }, [highlightSourceId, photos, onHighlighted])
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-4">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-extrabold text-slate-900">
         <span className="grid h-8 w-8 place-items-center rounded-xl bg-leaf-50 text-leaf-600">
           <ImageIcon className="h-[18px] w-[18px]" />
@@ -28,10 +45,11 @@ export default function GalleryTab({ photos }: Props) {
           <button
             key={p.id}
             type="button"
+            data-source-id={p.sourceMessageId}
             onClick={() => setActive(p)}
             className={`group relative aspect-square overflow-hidden rounded-2xl shadow-sm transition active:scale-95 ${
               p.imageUrl ? '' : `bg-gradient-to-br ${p.gradient} text-white`
-            }`}
+            } ${activeHighlight === p.sourceMessageId ? 'ring-4 ring-brand-400' : ''}`}
           >
             {p.imageUrl ? (
               <img src={p.imageUrl} alt={p.caption} className="h-full w-full object-cover" />

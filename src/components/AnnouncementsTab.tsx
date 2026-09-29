@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AnnouncementCard } from '../data'
 import { downloadXlsx } from '../xlsxExport'
 import { DAY_FILTER_OPTIONS, matchesDayFilter, type DayFilterValue } from '../dayFilter'
@@ -10,6 +10,8 @@ interface Props {
   announcements: AnnouncementCard[]
   unreadSince: number
   onOpenSource: (id?: string) => void
+  highlightSourceId?: string | null
+  onHighlighted?: () => void
 }
 
 interface DayBubble {
@@ -36,13 +38,39 @@ function groupByDay(announcements: AnnouncementCard[]): DayBubble[] {
     .sort((x, y) => y.items[y.items.length - 1].ts - x.items[x.items.length - 1].ts)
 }
 
-export default function AnnouncementsTab({ announcements, unreadSince, onOpenSource }: Props) {
+export default function AnnouncementsTab({
+  announcements,
+  unreadSince,
+  onOpenSource,
+  highlightSourceId,
+  onHighlighted,
+}: Props) {
   const [filter, setFilter] = useState<DayFilterValue>('all')
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const bubbles = useMemo(() => groupByDay(announcements), [announcements])
   const filteredBubbles = useMemo(
     () => bubbles.filter((b) => matchesDayFilter(b.key, filter, new Date())),
     [bubbles, filter],
   )
+
+  // Arriving here from a routing-tag click in the chat - make sure the
+  // day filter isn't hiding the bubble that came from that message, then
+  // scroll to it and flash it briefly.
+  useEffect(() => {
+    if (highlightSourceId) setFilter('all')
+  }, [highlightSourceId])
+
+  useEffect(() => {
+    if (!highlightSourceId) return
+    const el = scrollRef.current?.querySelector(`[data-source-id="${highlightSourceId}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setActiveHighlight(highlightSourceId)
+    onHighlighted?.()
+    const timer = setTimeout(() => setActiveHighlight(null), 2200)
+    return () => clearTimeout(timer)
+  }, [highlightSourceId, filteredBubbles, onHighlighted])
 
   const handleExport = () => {
     const filterLabel = DAY_FILTER_OPTIONS.find((o) => o.value === filter)?.label ?? ''
@@ -51,7 +79,7 @@ export default function AnnouncementsTab({ announcements, unreadSince, onOpenSou
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-4">
       <div className="mb-1 flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-50 text-rose-500">
           <BellIcon className="h-[18px] w-[18px]" />
@@ -79,9 +107,11 @@ export default function AnnouncementsTab({ announcements, unreadSince, onOpenSou
             <div className="flex flex-col gap-1.5">
               {bubble.items.map((n) => {
                 const isUnread = n.ts > unreadSince
+                const isHighlighted = !!n.sourceMessageId && activeHighlight === n.sourceMessageId
                 return (
                   <div
                     key={n.id}
+                    data-source-id={n.sourceMessageId}
                     role="button"
                     tabIndex={0}
                     onClick={() => onOpenSource(n.sourceMessageId)}
@@ -89,8 +119,8 @@ export default function AnnouncementsTab({ announcements, unreadSince, onOpenSou
                     className="flex cursor-pointer items-start"
                   >
                     <div
-                      className={`max-w-full rounded-2xl rounded-ss-sm px-3.5 py-2.5 ${
-                        isUnread ? 'bg-amber-100' : 'bg-rose-50'
+                      className={`max-w-full rounded-2xl rounded-ss-sm px-3.5 py-2.5 transition-colors duration-700 ${
+                        isHighlighted ? 'bg-brand-100 ring-2 ring-inset ring-brand-400' : isUnread ? 'bg-amber-100' : 'bg-rose-50'
                       }`}
                     >
                       <ExpandableText text={`${n.icon} ${n.text}`} className="text-sm leading-relaxed text-slate-800" />

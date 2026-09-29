@@ -10,7 +10,7 @@ interface Props {
   onSend: (text: string) => void
   onLike: (id: string) => void
   onDelete: (id: string) => void
-  onNavigate: (tab: TabId) => void
+  onNavigate: (tab: TabId, sourceMessageId: string) => void
   scrollToMessageId?: string | null
   onScrolledToMessage?: () => void
 }
@@ -112,7 +112,7 @@ export default function ChatScreen({
                       <button
                         key={tag}
                         type="button"
-                        onClick={() => destination && onNavigate(destination)}
+                        onClick={() => destination && onNavigate(destination, m.id)}
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition hover:opacity-80 ${tagStyles[tag]}`}
                       >
                         {destinationLabel[tag]}

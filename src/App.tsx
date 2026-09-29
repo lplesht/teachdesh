@@ -72,6 +72,7 @@ export default function App() {
   const [tab, setTab] = useState<TabId>('home')
   const [rosterOpen, setRosterOpen] = useState(false)
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
+  const [highlightSourceId, setHighlightSourceId] = useState<string | null>(null)
 
   const students = useRoster()
   const messages = useMessages()
@@ -172,6 +173,13 @@ export default function App() {
     setTab('home')
   }
 
+  // The reverse direction - clicking a routing tag under a teacher's
+  // message jumps to that tab and highlights the card(s) it produced there.
+  const navigateFromTag = (destination: TabId, sourceMessageId: string) => {
+    setHighlightSourceId(sourceMessageId)
+    setTab(destination)
+  }
+
   if (!firebaseReady) return <FirebaseSetupNotice />
 
   return (
@@ -188,23 +196,37 @@ export default function App() {
               onSend={sendMessage}
               onLike={likeMessage}
               onDelete={deleteMessage}
-              onNavigate={setTab}
+              onNavigate={navigateFromTag}
               scrollToMessageId={scrollToMessageId}
               onScrolledToMessage={() => setScrollToMessageId(null)}
             />
           )}
           {tab === 'calendar' && <CalendarTab events={events} role={role} onRsvp={rsvpEvent} />}
           {tab === 'board' && (
-            <BoardTab assignments={assignments} unreadSince={unreadSince.board} onOpenSource={openSourceMessage} />
+            <BoardTab
+              assignments={assignments}
+              unreadSince={unreadSince.board}
+              onOpenSource={openSourceMessage}
+              highlightSourceId={highlightSourceId}
+              onHighlighted={() => setHighlightSourceId(null)}
+            />
           )}
           {tab === 'announcements' && (
             <AnnouncementsTab
               announcements={announcements}
               unreadSince={unreadSince.announcements}
               onOpenSource={openSourceMessage}
+              highlightSourceId={highlightSourceId}
+              onHighlighted={() => setHighlightSourceId(null)}
             />
           )}
-          {tab === 'gallery' && <GalleryTab photos={photos} />}
+          {tab === 'gallery' && (
+            <GalleryTab
+              photos={photos}
+              highlightSourceId={highlightSourceId}
+              onHighlighted={() => setHighlightSourceId(null)}
+            />
+          )}
         </main>
 
         <BottomNav

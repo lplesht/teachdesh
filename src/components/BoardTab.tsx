@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AssignmentCard } from '../data'
 import { downloadXlsx } from '../xlsxExport'
 import { DAY_FILTER_OPTIONS, matchesDayFilter, type DayFilterValue } from '../dayFilter'
@@ -10,6 +10,8 @@ interface Props {
   assignments: AssignmentCard[]
   unreadSince: number
   onOpenSource: (id?: string) => void
+  highlightSourceId?: string | null
+  onHighlighted?: () => void
 }
 
 interface DayBubble {
@@ -37,13 +39,33 @@ function groupByDay(assignments: AssignmentCard[]): DayBubble[] {
     .sort((x, y) => y.items[y.items.length - 1].ts - x.items[x.items.length - 1].ts)
 }
 
-export default function BoardTab({ assignments, unreadSince, onOpenSource }: Props) {
+export default function BoardTab({ assignments, unreadSince, onOpenSource, highlightSourceId, onHighlighted }: Props) {
   const [filter, setFilter] = useState<DayFilterValue>('all')
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const bubbles = useMemo(() => groupByDay(assignments), [assignments])
   const filteredBubbles = useMemo(
     () => bubbles.filter((b) => matchesDayFilter(b.key, filter, new Date())),
     [bubbles, filter],
   )
+
+  // Arriving here from a routing-tag click in the chat - make sure the
+  // day filter isn't hiding the card that came from that message, then
+  // scroll to it and flash it briefly.
+  useEffect(() => {
+    if (highlightSourceId) setFilter('all')
+  }, [highlightSourceId])
+
+  useEffect(() => {
+    if (!highlightSourceId) return
+    const el = scrollRef.current?.querySelector(`[data-source-id="${highlightSourceId}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setActiveHighlight(highlightSourceId)
+    onHighlighted?.()
+    const timer = setTimeout(() => setActiveHighlight(null), 2200)
+    return () => clearTimeout(timer)
+  }, [highlightSourceId, filteredBubbles, onHighlighted])
 
   const handleExport = () => {
     const filterLabel = DAY_FILTER_OPTIONS.find((o) => o.value === filter)?.label ?? ''
@@ -54,7 +76,7 @@ export default function BoardTab({ assignments, unreadSince, onOpenSource }: Pro
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-4">
       <div className="mb-1 flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-xl bg-sun-100 text-sun-600">
           <ClipboardIcon className="h-[18px] w-[18px]" />
@@ -82,15 +104,17 @@ export default function BoardTab({ assignments, unreadSince, onOpenSource }: Pro
             <div className="flex flex-col divide-y divide-slate-50">
               {bubble.items.map((a) => {
                 const isUnread = a.ts > unreadSince
+                const isHighlighted = !!a.sourceMessageId && activeHighlight === a.sourceMessageId
                 return (
                   <div
                     key={a.id}
+                    data-source-id={a.sourceMessageId}
                     role="button"
                     tabIndex={0}
                     onClick={() => onOpenSource(a.sourceMessageId)}
                     onKeyDown={(e) => e.key === 'Enter' && onOpenSource(a.sourceMessageId)}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl py-2.5 text-start first:pt-0 last:pb-0 ${
-                      isUnread ? '-mx-2 bg-amber-50 px-2' : ''
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl py-2.5 text-start transition-colors duration-700 first:pt-0 last:pb-0 ${
+                      isHighlighted ? '-mx-2 bg-brand-50 px-2 ring-2 ring-inset ring-brand-400' : isUnread ? '-mx-2 bg-amber-50 px-2' : ''
                     }`}
                   >
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg">{a.icon}</span>
