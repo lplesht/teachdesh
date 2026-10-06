@@ -2,9 +2,13 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Firebase Hosting serves the app from the site root; the legacy GitHub
+// Pages deploy serves it from /teachdesh/ and sets BASE_PATH accordingly.
+const base = process.env.BASE_PATH ?? '/'
+
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/teachdesh/',
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -23,8 +27,8 @@ export default defineConfig({
         name: 'כיתת ענן',
         short_name: 'כיתת ענן',
         description: 'עדכונים, מטלות ואירועי הכיתה - במקום אחד',
-        start_url: '/teachdesh/',
-        scope: '/teachdesh/',
+        start_url: base,
+        scope: base,
         display: 'standalone',
         background_color: '#f4f6fb',
         theme_color: '#2f4bd9',

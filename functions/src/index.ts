@@ -36,8 +36,5 @@ export const notifyOnNewMessage = onDocumentCreated('classes/{classId}/messages/
       title: authorName,
       body: body || 'עדכון חדש',
     },
-    webpush: {
-      fcmOptions: { link: '/teachdesh/' },
-    },
   })
 })
