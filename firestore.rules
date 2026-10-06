@@ -70,6 +70,15 @@ service cloud.firestore {
       allow write: if isMember(classId) && mySession().phone == phone;
     }
 
+    match /classes/{classId}/pushTokens/{phone} {
+      // Each viewer registers their own push token (src/push.ts); the
+      // notifyOnNewMessage Cloud Function reads these via the Admin SDK,
+      // which bypasses rules entirely - only the teacher needs client read
+      // access, and only to show who has notifications on.
+      allow read: if isTeacher(classId);
+      allow write: if isMember(classId) && mySession().phone == phone;
+    }
+
     match /classes/{classId}/events/{eventId} {
       allow read: if isMember(classId);
       allow create, delete: if isTeacher(classId);

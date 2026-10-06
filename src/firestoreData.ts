@@ -246,6 +246,7 @@ export async function deleteAccessDoc(classId: string, phone: string): Promise<v
 export async function sendMessageDoc(
   classId: string,
   from: 'teacher' | 'parent',
+  fromPhone: string,
   authorName: string,
   text: string,
   time: string,
@@ -254,6 +255,7 @@ export async function sendMessageDoc(
 
   const docRef = await addDoc(classCollection(classId, 'messages'), {
     from,
+    fromPhone,
     authorName,
     text,
     time,

@@ -28,7 +28,7 @@ if (firebaseReady) {
   auth = getAuth(app)
 }
 
-export { db, auth }
+export { app, db, auth }
 
 let signInPromise: Promise<void> | null = null
 

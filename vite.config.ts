@@ -9,6 +9,16 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // injectManifest (a hand-written service worker, src/sw.js) instead of
+      // the default generateSW - push notifications need the SW to handle
+      // raw 'push'/'notificationclick' events itself, which generateSW's
+      // auto-generated worker has no hook for.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+      },
       manifest: {
         name: 'כיתת ענן',
         short_name: 'כיתת ענן',

@@ -10,12 +10,14 @@ import RosterModal from './components/RosterModal'
 import LoginScreen from './components/LoginScreen'
 import AccessManagerModal from './components/AccessManagerModal'
 import InstallPrompt from './components/InstallPrompt'
+import PushPrompt from './components/PushPrompt'
 import { classifyMessage, destinationLabel } from './classify'
 import { classifyWithLLM } from './llmClassify'
 import { firebaseReady } from './firebase'
 import { useMyAccess, useSession, logout } from './auth/session'
 import { CLASSES } from './classes'
 import { usePresenceHeartbeat } from './presence'
+import { onForegroundPush } from './push'
 import {
   addAnnouncementDoc,
   addAssignmentDoc,
@@ -173,12 +175,23 @@ function SignedInApp({
     toastTimer.current = setTimeout(() => setRoutingToast(null), 3800)
   }
 
+  // Only fires while this tab is open and in the foreground - backgrounded
+  // or closed is handled by the service worker itself (src/sw.js).
+  useEffect(() => {
+    let unsub: (() => void) | undefined
+    void onForegroundPush((title, body) => showToast(`🔔 ${title}: ${body}`)).then((fn) => {
+      unsub = fn
+    })
+    return () => unsub?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const sendMessage = (text: string) => {
     const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
     const sentAt = new Date()
 
     void (async () => {
-      const { id } = await sendMessageDoc(classId, 'teacher', displayName, text, time)
+      const { id } = await sendMessageDoc(classId, 'teacher', phone, displayName, text, time)
 
       const llmOutcome = await classifyWithLLM(text, false, sentAt)
       const result = llmOutcome.result ?? classifyMessage(text, false, sentAt)
@@ -255,6 +268,7 @@ function SignedInApp({
         />
 
         <InstallPrompt />
+        <PushPrompt classId={classId} phone={phone} displayName={displayName} />
 
         <main className="min-h-0 flex-1">
           {tab === 'home' && (
