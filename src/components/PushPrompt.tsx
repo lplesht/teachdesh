@@ -17,14 +17,21 @@ export default function PushPrompt({ classId, phone, displayName }: Props) {
   // Only worth asking while the browser hasn't already decided (granted or
   // denied), and not if this viewer already said "not now" once before.
   useEffect(() => {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'default') return
+    if (typeof Notification === 'undefined') return
+    // Already allowed on this device (e.g. via another class): just register
+    // this class's token too, no prompt needed.
+    if (Notification.permission === 'granted') {
+      void enablePushNotifications(classId, phone, displayName)
+      return
+    }
+    if (Notification.permission !== 'default') return
     try {
       if (localStorage.getItem(DISMISSED_KEY)) return
     } catch {
       // ignore - private browsing etc.
     }
     setVisible(true)
-  }, [])
+  }, [classId, phone, displayName])
 
   const dismiss = () => {
     setVisible(false)

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { auth, db, ensureSignedIn } from '../firebase'
 import type { AccessEntry } from '../firestoreData'
 
-export interface Session {
+// One class this device is logged in to. Holds only { classId, phone } -
+// never role/displayName, which always come from the matching access doc
+// (see useMyAccess below) so the client can never claim its own role.
+export interface Membership {
   classId: string
   phone: string
 }
@@ -12,68 +15,99 @@ export function normalizePhone(raw: string): string {
   return raw.replace(/\D/g, '')
 }
 
-function sessionDoc(uid: string) {
-  return doc(db!, 'sessions', uid)
+function membershipsCollection(uid: string) {
+  return collection(db!, 'sessions', uid, 'classes')
 }
 
-// 'loading' until anonymous auth + the first Firestore read resolve; null
-// once resolved with no session (not logged in); a Session once logged in.
-// Deliberately holds only { classId, phone } - never role/displayName,
-// which always come from the matching access doc (see useMyAccess below)
-// so the client can never claim its own role.
-export function useSession(): 'loading' | Session | null {
-  const [session, setSession] = useState<'loading' | Session | null>('loading')
+function membershipDoc(uid: string, classId: string) {
+  return doc(db!, 'sessions', uid, 'classes', classId)
+}
+
+// 'loading' until anonymous auth + the first Firestore read resolve;
+// afterwards the list of classes this device is logged in to (empty = not
+// logged in anywhere).
+export function useMemberships(): 'loading' | Membership[] {
+  const [memberships, setMemberships] = useState<'loading' | Membership[]>('loading')
 
   useEffect(() => {
     if (!db || !auth) {
-      setSession(null)
+      setMemberships([])
       return
     }
-    let unsubSession: (() => void) | undefined
+    let unsub: (() => void) | undefined
     void ensureSignedIn().then(() => {
       const uid = auth!.currentUser?.uid
       if (!uid) {
-        setSession(null)
+        setMemberships([])
         return
       }
-      unsubSession = onSnapshot(
-        sessionDoc(uid),
+      unsub = onSnapshot(
+        membershipsCollection(uid),
         // Firestore applies writes to the local cache optimistically,
-        // before the server has actually accepted or rejected them - so a
-        // write that will ultimately be *rejected* (wrong code) still
-        // fires this listener once with hasPendingWrites=true and the
-        // (invalid) data as if it had already succeeded. Ignoring pending
-        // snapshots and waiting for the server-confirmed one avoids a
-        // brief false "logged in" flash that would otherwise unmount the
-        // login screen (and its error message) before the real rejection
-        // comes back moments later. includeMetadataChanges is required
-        // here: without it, Firestore only re-fires a listener when the
-        // *data* changes, and the pending->confirmed transition has
-        // identical data, so the confirmation would never arrive at all.
+        // before the server has accepted or rejected them - so a login
+        // with a wrong code briefly shows up here as if it had succeeded.
+        // Skipping docs with pending writes waits for the server-confirmed
+        // version, so a rejected login never flashes a false "logged in"
+        // (which would unmount the login screen and lose its error).
+        // includeMetadataChanges is required: the pending->confirmed
+        // transition has identical data, so without it the confirmation
+        // would never fire this listener at all.
         { includeMetadataChanges: true },
         (snap) => {
-          if (snap.metadata.hasPendingWrites) return
-          const data = snap.data()
-          setSession(data ? { classId: data.classId, phone: data.phone } : null)
+          setMemberships(
+            snap.docs
+              .filter((d) => !d.metadata.hasPendingWrites)
+              .map((d) => ({ classId: d.id, phone: d.data().phone as string }))
+              .sort((x, y) => x.classId.localeCompare(y.classId)),
+          )
         },
       )
     })
-    return () => unsubSession?.()
+    return () => unsub?.()
   }, [])
 
-  return session
+  return memberships
 }
 
-function sessionKeyOf(session: Session | 'loading' | null): string | null {
-  return session === 'loading' || session === null ? null : `${session.classId}:${session.phone}`
+const ACTIVE_CLASS_KEY = 'teachdesh_active_class'
+
+// Which of the joined classes is currently open. The choice is remembered
+// per device; if it points at a class that is no longer joined (or was never
+// chosen) the first joined class is used instead.
+export function useActiveMembership(
+  memberships: 'loading' | Membership[],
+): ['loading' | Membership | null, (classId: string) => void] {
+  const [desired, setDesired] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_CLASS_KEY)
+    } catch {
+      return null
+    }
+  })
+
+  const setActive = (classId: string) => {
+    setDesired(classId)
+    try {
+      localStorage.setItem(ACTIVE_CLASS_KEY, classId)
+    } catch {
+      // ignore - private browsing etc.
+    }
+  }
+
+  if (memberships === 'loading') return ['loading', setActive]
+  return [memberships.find((m) => m.classId === desired) ?? memberships[0] ?? null, setActive]
 }
 
-// Looks up role/displayName for the current session by reading its matching
+function membershipKeyOf(membership: Membership | 'loading' | null): string | null {
+  return membership === 'loading' || membership === null ? null : `${membership.classId}:${membership.phone}`
+}
+
+// Looks up role/displayName for the active membership by reading its matching
 // access doc - this is the *only* source of truth for role in the UI, same
 // as the security rules use server-side.
 //
 // Reports 'loading' (via the ref check below) until the lookup has actually
-// settled *for the current session's identity* - not just "whatever `access`
+// settled *for the current membership's identity* - not just "whatever `access`
 // happened to hold before `session` changed". Without that guard, right
 // after logging in there's one render where `session` is already the new,
 // real session but `access` still holds its previous value (null, from
@@ -85,10 +119,10 @@ function sessionKeyOf(session: Session | 'loading' | null): string | null {
 const MAX_ACCESS_RETRIES = 8
 const ACCESS_RETRY_DELAY_MS = 400
 
-export function useMyAccess(session: Session | 'loading' | null): AccessEntry | 'loading' | null {
+export function useMyAccess(session: Membership | 'loading' | null): AccessEntry | 'loading' | null {
   const [access, setAccess] = useState<AccessEntry | 'loading' | null>('loading')
   const resolvedForKey = useRef<string | null>(null)
-  const sessionKey = sessionKeyOf(session)
+  const sessionKey = membershipKeyOf(session)
   const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
@@ -139,10 +173,10 @@ function isPermissionDenied(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === 'permission-denied'
 }
 
-// Creates the session doc; the security rule itself checks `code` against
-// the stored access doc for (classId, phone) and rejects the write if it
-// doesn't match, so a wrong code never creates a session - no separate
-// server-side check needed.
+// Creates this class's membership doc; the security rule itself checks
+// `code` against the stored access doc for (classId, phone) and rejects the
+// write if it doesn't match, so a wrong code never joins a class - no
+// separate server-side check needed.
 export async function login(classId: string, phoneRaw: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!db || !auth) return { ok: false, error: 'האפליקציה לא מחוברת למסד נתונים' }
 
@@ -154,14 +188,18 @@ export async function login(classId: string, phoneRaw: string, code: string): Pr
   if (!uid) return { ok: false, error: 'ההתחברות נכשלה, נסי לרענן את הדף' }
 
   try {
-    await setDoc(sessionDoc(uid), { classId, phone, code: code.trim() })
+    await setDoc(membershipDoc(uid, classId), { phone, code: code.trim() })
     return { ok: true }
   } catch (err) {
     return { ok: false, error: isPermissionDenied(err) ? 'מספר טלפון או קוד שגויים' : 'שגיאה בהתחברות, נסי שוב' }
   }
 }
 
-export async function logout(): Promise<void> {
+export async function logout(classId: string): Promise<void> {
   if (!db || !auth?.currentUser) return
-  await deleteDoc(sessionDoc(auth.currentUser.uid))
+  await deleteDoc(membershipDoc(auth.currentUser.uid, classId))
+}
+
+export async function logoutAll(classIds: string[]): Promise<void> {
+  await Promise.all(classIds.map((id) => logout(id)))
 }

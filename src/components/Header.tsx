@@ -1,6 +1,6 @@
 import type { ClassInfo } from '../classes'
 import type { Role } from '../data'
-import { KeyIcon, RosterIcon } from './icons'
+import { KeyIcon, MenuIcon, RosterIcon } from './icons'
 
 interface Props {
   classInfo: ClassInfo
@@ -9,7 +9,7 @@ interface Props {
   studentsCount: number
   onOpenRoster: () => void
   onOpenAccessManager: () => void
-  onLogout: () => void
+  onOpenDrawer: () => void
 }
 
 export default function Header({
@@ -19,12 +19,20 @@ export default function Header({
   studentsCount,
   onOpenRoster,
   onOpenAccessManager,
-  onLogout,
+  onOpenDrawer,
 }: Props) {
   return (
     <header className="shrink-0 border-b border-slate-200/80 bg-white/95 px-4 pb-2.5 pt-3 backdrop-blur">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onOpenDrawer}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+            aria-label="הכיתות שלי"
+          >
+            <MenuIcon className="h-[18px] w-[18px]" />
+          </button>
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-sm shadow-brand-300/50">
             {classInfo.teacherInitials}
           </div>
@@ -67,9 +75,6 @@ export default function Header({
           <span className="truncate text-[11px] font-semibold text-slate-500">
             {displayName} · {role === 'teacher' ? 'מורה' : 'הורה'}
           </span>
-          <button type="button" onClick={onLogout} className="shrink-0 text-[11px] font-bold text-rose-600">
-            התנתקות
-          </button>
         </div>
       </div>
     </header>

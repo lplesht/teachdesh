@@ -2,11 +2,19 @@ import { useState } from 'react'
 import { findClassByNumber, type ClassInfo } from '../classes'
 import { login } from '../auth/session'
 
-export default function LoginScreen() {
+interface Props {
+  // Set when adding another class to an already logged-in device.
+  defaultPhone?: string
+  joinedClassIds?: string[]
+  onCancel?: () => void
+  onJoined?: (classId: string) => void
+}
+
+export default function LoginScreen({ defaultPhone = '', joinedClassIds = [], onCancel, onJoined }: Props) {
   const [classNumber, setClassNumber] = useState('')
   const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
   const [classError, setClassError] = useState<string | null>(null)
-  const [phone, setPhone] = useState('')
+  const [phone, setPhone] = useState(defaultPhone)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -15,6 +23,10 @@ export default function LoginScreen() {
     const found = findClassByNumber(Number(classNumber))
     if (!found) {
       setClassError('מספר כיתה לא נכון')
+      return
+    }
+    if (joinedClassIds.includes(found.id)) {
+      setClassError('אתם כבר מחוברים לכיתה הזו')
       return
     }
     setClassError(null)
@@ -28,12 +40,13 @@ export default function LoginScreen() {
     const result = await login(classInfo.id, phone, code)
     setSubmitting(false)
     if (!result.ok) setError(result.error)
+    else onJoined?.(classInfo.id)
   }
 
   return (
     <div className="grid min-h-dvh place-items-center bg-slate-100 p-6" dir="rtl">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
-        <h1 className="mb-1 text-lg font-extrabold text-slate-900">כיתת ענן</h1>
+        <h1 className="mb-1 text-lg font-extrabold text-slate-900">{onCancel ? 'הוספת כיתה' : 'כיתת ענן'}</h1>
         <p className="mb-5 text-sm text-slate-500">התחברות עם מספר טלפון וקוד שקיבלת מהמורה</p>
 
         {!classInfo ? (
@@ -98,6 +111,12 @@ export default function LoginScreen() {
               </button>
             </div>
           </>
+        )}
+
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="mt-4 w-full text-xs font-semibold text-slate-500">
+            חזרה
+          </button>
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { getAuth, onAuthStateChanged, signInAnonymously, type Auth } from 'firebase/auth'
-import { getFirestore, type Firestore } from 'firebase/firestore'
+import { connectAuthEmulator, getAuth, onAuthStateChanged, signInAnonymously, type Auth } from 'firebase/auth'
+import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore'
 
 // Firebase's web config isn't a secret (it only identifies the project;
 // real security comes from firestore.rules) - safe to embed directly, with
@@ -26,6 +26,11 @@ if (firebaseReady) {
   app = initializeApp(firebaseConfig)
   db = getFirestore(app)
   auth = getAuth(app)
+  // Local testing only: point at the Firebase emulators instead of production.
+  if (import.meta.env.VITE_USE_EMULATOR === 'true') {
+    connectFirestoreEmulator(db, '127.0.0.1', 8080)
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+  }
 }
 
 export { app, db, auth }

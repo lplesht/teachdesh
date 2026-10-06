@@ -14,7 +14,16 @@ import PushPrompt from './components/PushPrompt'
 import { classifyMessage, destinationLabel } from './classify'
 import { classifyWithLLM } from './llmClassify'
 import { firebaseReady } from './firebase'
-import { useMyAccess, useSession, logout } from './auth/session'
+import {
+  logout,
+  logoutAll,
+  useActiveMembership,
+  useMemberships,
+  useMyAccess,
+  type Membership,
+} from './auth/session'
+import ClassDrawer from './components/ClassDrawer'
+import { setChatSeen } from './chatSeen'
 import { CLASSES } from './classes'
 import { usePresenceHeartbeat } from './presence'
 import { onForegroundPush } from './push'
@@ -43,17 +52,17 @@ import type { Role, TabId } from './data'
 type BadgedTab = 'calendar' | 'board' | 'announcements'
 const BADGED_TABS: BadgedTab[] = ['calendar', 'board', 'announcements']
 
-function getSeenTs(tab: BadgedTab): number {
+function getSeenTs(classId: string, tab: BadgedTab): number {
   try {
-    return Number(localStorage.getItem(`teachdesh_seen_${tab}`)) || 0
+    return Number(localStorage.getItem(`teachdesh_seen_${classId}_${tab}`)) || 0
   } catch {
     return 0
   }
 }
 
-function setSeenTs(tab: BadgedTab, ts: number): void {
+function setSeenTs(classId: string, tab: BadgedTab, ts: number): void {
   try {
-    localStorage.setItem(`teachdesh_seen_${tab}`, String(ts))
+    localStorage.setItem(`teachdesh_seen_${classId}_${tab}`, String(ts))
   } catch {
     // ignore - private browsing etc.
   }
@@ -82,22 +91,50 @@ function LoadingScreen() {
 }
 
 export default function App() {
-  const session = useSession()
-  const access = useMyAccess(session)
+  const memberships = useMemberships()
+  const [active, setActive] = useActiveMembership(memberships)
+  const access = useMyAccess(active)
+  const [addingClass, setAddingClass] = useState(false)
 
-  // A session can outlive its access doc (e.g. a teacher removed that
-  // entry) - the sessions/{uid} write rule only allows *create*, so a
-  // lingering session would otherwise permanently block re-login. Clear it
-  // automatically so the person just sees the login screen again.
+  // A membership can outlive its access doc (e.g. a teacher removed that
+  // entry) - the membership write rule only checks the code at *write*
+  // time, so a lingering one would otherwise keep a removed person in.
+  // Clear just that class automatically so they land on the login screen
+  // (or their other classes).
   useEffect(() => {
-    if (session !== 'loading' && session !== null && access === null) void logout()
-  }, [session, access])
+    if (active !== 'loading' && active !== null && access === null) void logout(active.classId)
+  }, [active, access])
 
   if (!firebaseReady) return <FirebaseSetupNotice />
-  if (session === 'loading' || access === 'loading') return <LoadingScreen />
-  if (session === null || access === null) return <LoginScreen />
+  if (memberships === 'loading' || active === 'loading' || access === 'loading') return <LoadingScreen />
+  if (active === null || access === null) return <LoginScreen />
 
-  return <SignedInApp classId={session.classId} phone={session.phone} role={access.role} displayName={access.displayName} />
+  if (addingClass) {
+    return (
+      <LoginScreen
+        defaultPhone={active.phone}
+        joinedClassIds={memberships.map((m) => m.classId)}
+        onCancel={() => setAddingClass(false)}
+        onJoined={(classId) => {
+          setActive(classId)
+          setAddingClass(false)
+        }}
+      />
+    )
+  }
+
+  return (
+    <SignedInApp
+      key={active.classId}
+      classId={active.classId}
+      phone={active.phone}
+      role={access.role}
+      displayName={access.displayName}
+      memberships={memberships}
+      onSwitchClass={setActive}
+      onAddClass={() => setAddingClass(true)}
+    />
+  )
 }
 
 function SignedInApp({
@@ -105,13 +142,20 @@ function SignedInApp({
   phone,
   role,
   displayName,
+  memberships,
+  onSwitchClass,
+  onAddClass,
 }: {
   classId: string
   phone: string
   role: Role
   displayName: string
+  memberships: Membership[]
+  onSwitchClass: (classId: string) => void
+  onAddClass: () => void
 }) {
   const [tab, setTab] = useState<TabId>('home')
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [rosterOpen, setRosterOpen] = useState(false)
   const [accessManagerOpen, setAccessManagerOpen] = useState(false)
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null)
@@ -126,12 +170,18 @@ function SignedInApp({
   const announcements = useAnnouncements(classId)
   const photos = usePhotos(classId)
 
+  // The class drawer counts messages newer than this as unread while this
+  // class isn't the open one.
+  useEffect(() => {
+    if (tab === 'home') setChatSeen(classId, Date.now())
+  }, [classId, tab, messages])
+
   const classInfo = CLASSES[classId]
 
   const [seenTs, setSeenTsState] = useState<Record<BadgedTab, number>>(() => ({
-    calendar: getSeenTs('calendar'),
-    board: getSeenTs('board'),
-    announcements: getSeenTs('announcements'),
+    calendar: getSeenTs(classId, 'calendar'),
+    board: getSeenTs(classId, 'board'),
+    announcements: getSeenTs(classId, 'announcements'),
   }))
 
   // The "seen" line each tab's items are compared against while that tab is
@@ -139,9 +189,9 @@ function SignedInApp({
   // unread for this whole viewing session - rather than clearing the moment
   // seenTs itself is bumped to now below.
   const [unreadSince, setUnreadSince] = useState<Record<BadgedTab, number>>(() => ({
-    calendar: getSeenTs('calendar'),
-    board: getSeenTs('board'),
-    announcements: getSeenTs('announcements'),
+    calendar: getSeenTs(classId, 'calendar'),
+    board: getSeenTs(classId, 'board'),
+    announcements: getSeenTs(classId, 'announcements'),
   }))
 
   // Freezes this tab's unread-since line at its last-seen value the moment
@@ -162,7 +212,7 @@ function SignedInApp({
     if (!BADGED_TABS.includes(tab as BadgedTab)) return
     const t = tab as BadgedTab
     const now = Date.now()
-    setSeenTs(t, now)
+    setSeenTs(classId, t, now)
     setSeenTsState((prev) => ({ ...prev, [t]: now }))
   }, [tab, events, assignments, announcements])
 
@@ -264,7 +314,7 @@ function SignedInApp({
           studentsCount={students.length}
           onOpenRoster={() => setRosterOpen(true)}
           onOpenAccessManager={() => setAccessManagerOpen(true)}
-          onLogout={() => void logout()}
+          onOpenDrawer={() => setDrawerOpen(true)}
         />
 
         <InstallPrompt />
@@ -321,6 +371,23 @@ function SignedInApp({
             board: assignments.filter((a) => a.ts > seenTs.board).length || undefined,
             announcements: announcements.filter((a) => a.ts > seenTs.announcements).length || undefined,
           }}
+        />
+
+        <ClassDrawer
+          open={drawerOpen}
+          memberships={memberships}
+          activeClassId={classId}
+          onClose={() => setDrawerOpen(false)}
+          onSwitch={(id) => {
+            setDrawerOpen(false)
+            if (id !== classId) onSwitchClass(id)
+          }}
+          onAdd={() => {
+            setDrawerOpen(false)
+            onAddClass()
+          }}
+          onLogoutClass={(id) => void logout(id)}
+          onLogoutAll={() => void logoutAll(memberships.map((m) => m.classId))}
         />
       </div>
 

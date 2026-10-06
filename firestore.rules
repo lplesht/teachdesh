@@ -1,10 +1,12 @@
 rules_version = '2';
 
 // Real access control: every visitor signs in anonymously (src/firebase.ts),
-// then must hold a sessions/{uid} doc created by a successful phone+code
-// login (src/auth/session.ts). The session only stores {classId, phone} -
-// role always comes from following sessions/{uid} -> classes/{classId}/access/{phone},
-// never from the client, so nobody can claim their own role.
+// then joins each class they belong to by creating a membership doc at
+// sessions/{uid}/classes/{classId} through a successful phone+code login
+// (src/auth/session.ts). A membership only stores {phone} - role always
+// comes from following it to classes/{classId}/access/{phone}, never from
+// the client, so nobody can claim their own role. One device can hold
+// several memberships at once (a parent with children in different classes).
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -12,40 +14,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function hasSession() {
-      return signedIn() && exists(/databases/$(database)/documents/sessions/$(request.auth.uid));
-    }
-
-    function mySession() {
-      return get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data;
+    function membershipPath(classId) {
+      return /databases/$(database)/documents/sessions/$(request.auth.uid)/classes/$(classId);
     }
 
     function isMember(classId) {
-      return hasSession() && mySession().classId == classId;
+      return signedIn() && exists(membershipPath(classId));
+    }
+
+    function myPhone(classId) {
+      return get(membershipPath(classId)).data.phone;
     }
 
     function myAccessDoc(classId) {
-      let s = mySession();
-      return get(/databases/$(database)/documents/classes/$(classId)/access/$(s.phone)).data;
+      return get(/databases/$(database)/documents/classes/$(classId)/access/$(myPhone(classId))).data;
     }
 
     function isTeacher(classId) {
       return isMember(classId) && myAccessDoc(classId).role == 'teacher';
     }
 
-    match /sessions/{uid} {
+    match /sessions/{uid}/classes/{classId} {
       allow read, delete: if signedIn() && request.auth.uid == uid;
       // The write itself is the code check: it succeeds only if `code`
-      // matches the stored access doc's code for that classId+phone.
-      allow create: if signedIn() && request.auth.uid == uid
-        && get(/databases/$(database)/documents/classes/$(request.resource.data.classId)/access/$(request.resource.data.phone)).data.code == request.resource.data.code;
-      allow update: if false; // re-login = delete then create fresh
+      // matches the stored access doc's code for that class+phone.
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && get(/databases/$(database)/documents/classes/$(classId)/access/$(request.resource.data.phone)).data.code == request.resource.data.code;
     }
 
     match /classes/{classId}/access/{phone} {
       // A parent may read only her own entry (to know her own role/display
       // name); a teacher may read/list/write the whole class's list.
-      allow read: if isMember(classId) && (mySession().phone == phone || myAccessDoc(classId).role == 'teacher');
+      allow read: if isMember(classId) && (myPhone(classId) == phone || myAccessDoc(classId).role == 'teacher');
       allow write: if isTeacher(classId);
     }
 
@@ -60,14 +60,14 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
             // Messages sent before this feature existed have no likedBy map
             // yet - treat that as an empty one rather than erroring the diff.
-            && request.resource.data.likedBy.diff('likedBy' in resource.data ? resource.data.likedBy : {}).affectedKeys().hasOnly([mySession().phone]));
+            && request.resource.data.likedBy.diff('likedBy' in resource.data ? resource.data.likedBy : {}).affectedKeys().hasOnly([myPhone(classId)]));
     }
 
     match /classes/{classId}/presence/{phone} {
       // Simple online/last-seen heartbeat (src/presence.ts) - any class
       // member can see who else is around, but only touch their own entry.
       allow read: if isMember(classId);
-      allow write: if isMember(classId) && mySession().phone == phone;
+      allow write: if isMember(classId) && myPhone(classId) == phone;
     }
 
     match /classes/{classId}/pushTokens/{phone} {
@@ -76,7 +76,7 @@ service cloud.firestore {
       // which bypasses rules entirely - only the teacher needs client read
       // access, and only to show who has notifications on.
       allow read: if isTeacher(classId);
-      allow write: if isMember(classId) && mySession().phone == phone;
+      allow write: if isMember(classId) && myPhone(classId) == phone;
     }
 
     match /classes/{classId}/events/{eventId} {
@@ -88,9 +88,13 @@ service cloud.firestore {
     }
 
     // Everything else under a class (assignments, announcements, photos,
-    // meta/roster) - members read, only the teacher writes.
+    // meta/roster) - members read, only the teacher writes. Overlapping
+    // match blocks are OR-ed together, so this broad rule must explicitly
+    // exclude the collections that have their own stricter read rule above
+    // (access holds everyone's login codes; pushTokens are device tokens) -
+    // otherwise it would quietly re-open them to every member.
     match /classes/{classId}/{collection}/{docId} {
-      allow read: if isMember(classId);
+      allow read: if isMember(classId) && !(collection in ['access', 'pushTokens']);
       allow write: if isTeacher(classId);
     }
   }
