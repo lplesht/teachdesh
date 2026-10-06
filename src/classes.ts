@@ -1,8 +1,5 @@
 export interface ClassInfo {
   id: string
-  // The short number a parent/teacher types on the login screen instead of
-  // picking from a list - simpler to hand out verbally than a full class id.
-  number: number
   className: string
   schoolName: string
   teacherName: string
@@ -14,7 +11,6 @@ export interface ClassInfo {
 export const CLASSES: Record<string, ClassInfo> = {
   b1: {
     id: 'b1',
-    number: 1,
     className: 'ב׳ 1',
     schoolName: 'בית ספר יסודי הרצוג',
     teacherName: 'אדום מטודי',
@@ -22,7 +18,6 @@ export const CLASSES: Record<string, ClassInfo> = {
   },
   g4: {
     id: 'g4',
-    number: 2,
     className: 'ג׳ 4',
     schoolName: 'בית ספר יסודי הרצוג',
     teacherName: 'תהילה שם טוב',
@@ -30,6 +25,11 @@ export const CLASSES: Record<string, ClassInfo> = {
   },
 }
 
-export function findClassByNumber(number: number): ClassInfo | undefined {
-  return Object.values(CLASSES).find((c) => c.number === number)
+// The login screen first asks for a school, then lists that school's classes.
+export function listSchools(): string[] {
+  return [...new Set(Object.values(CLASSES).map((c) => c.schoolName))]
+}
+
+export function classesOfSchool(schoolName: string): ClassInfo[] {
+  return Object.values(CLASSES).filter((c) => c.schoolName === schoolName)
 }
