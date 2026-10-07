@@ -2,9 +2,13 @@ import { doc, deleteDoc, setDoc } from 'firebase/firestore'
 import { getToken, getMessaging, isSupported, onMessage, type Messaging } from 'firebase/messaging'
 import { app, db, ensureSignedIn } from './firebase'
 
-// Not a secret (same as the rest of firebaseConfig) - just identifies which
-// Web Push certificate the browser should subscribe through.
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined
+// Not a secret (same as the rest of firebaseConfig) - the *public* half of the
+// Web Push key pair, which only identifies which certificate the browser
+// should subscribe through. Embedded as a default so the build doesn't depend
+// on a CI secret being present.
+const VAPID_KEY =
+  (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined) ||
+  'BB5taGuqFFXZCSMyxrivowgOy8uG9aPUIgkkG6dxJvZI_2M7g6Aycr0IxEd-RCAlOAkSvqJr9XohgrCmbBVHdhI'
 
 function pushTokenDoc(classId: string, phone: string) {
   return doc(db!, 'classes', classId, 'pushTokens', phone)
