@@ -21,6 +21,7 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
   const [role, setRole] = useState<'parent' | 'teacher'>('parent')
   const [code, setCode] = useState(randomCode())
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [editingPhone, setEditingPhone] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -28,6 +29,13 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
   const add = async () => {
     const normalized = normalizePhone(phone)
     if (!normalized || !displayName.trim() || !code.trim()) return
+    // Re-adding an existing phone would silently overwrite its code - the
+    // code is fixed once created, so refuse instead.
+    if (entries.some((e) => e.phone === normalized)) {
+      setError('המספר הזה כבר קיים ברשימה')
+      return
+    }
+    setError(null)
     setSaving(true)
     await setAccessDoc(classId, { phone: normalized, displayName: displayName.trim(), role, code: code.trim() })
     setSaving(false)
@@ -79,18 +87,23 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
           />
           <input
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              setPhone(e.target.value)
+              setError(null)
+            }}
             placeholder="מספר טלפון"
             type="tel"
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
           />
           <div className="flex items-center gap-2">
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="קוד"
-              className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
-            />
+            {/* The code is generated for each new person and can't be typed or
+                changed here - it's shown so it can be handed over once added. */}
+            <div className="flex flex-1 items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              <span>קוד (נוצר אוטומטית)</span>
+              <span className="font-bold text-slate-700" dir="ltr">
+                {code}
+              </span>
+            </div>
             <div className="flex items-center rounded-full bg-slate-100 p-1 text-[11px] font-semibold">
               <button
                 type="button"
@@ -108,6 +121,7 @@ export default function AccessManagerModal({ classId, onClose }: Props) {
               </button>
             </div>
           </div>
+          {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
           <button
             type="button"
             onClick={add}
