@@ -9,8 +9,9 @@ interface Props {
   activeClassId: string
   onClose: () => void
   onSwitch: (classId: string) => void
-  displayName: string
-  onLogout: () => void
+  onAdd: () => void
+  onLogoutClass: (classId: string) => void
+  onLogoutAll: () => void
 }
 
 // Each row watches its own class's messages so the unread count stays live
@@ -21,10 +22,12 @@ function ClassRow({
   classId,
   active,
   onSwitch,
+  onLogout,
 }: {
   classId: string
   active: boolean
   onSwitch: () => void
+  onLogout: () => void
 }) {
   const info = CLASSES[classId]
   const messages = useMessages(classId)
@@ -50,6 +53,9 @@ function ClassRow({
         )}
         {active && <span className="shrink-0 text-[10px] font-bold text-brand-600">פעילה</span>}
       </button>
+      <button type="button" onClick={onLogout} className="mt-1.5 text-[11px] font-semibold text-rose-600">
+        התנתקות מהכיתה
+      </button>
     </li>
   )
 }
@@ -60,8 +66,9 @@ export default function ClassDrawer({
   activeClassId,
   onClose,
   onSwitch,
-  displayName,
-  onLogout,
+  onAdd,
+  onLogoutClass,
+  onLogoutAll,
 }: Props) {
   if (!open) return null
 
@@ -69,9 +76,7 @@ export default function ClassDrawer({
     <div className="absolute inset-0 z-40 flex" dir="rtl">
       <aside className="flex h-full w-[82%] max-w-xs flex-col bg-white p-4 shadow-2xl">
         <h2 className="mb-1 text-base font-extrabold text-slate-900">הכיתות שלי</h2>
-        <p className="mb-3 text-xs text-slate-500">
-          {memberships.length > 1 ? 'בחרו כיתה כדי לעבור אליה.' : 'הכיתה שמשויכת אליך.'}
-        </p>
+        <p className="mb-3 text-xs text-slate-500">בחרו כיתה כדי לעבור אליה, או הוסיפו כיתה נוספת.</p>
 
         <ul className="flex flex-1 flex-col gap-2 overflow-y-auto">
           {memberships.map((m) => (
@@ -80,14 +85,23 @@ export default function ClassDrawer({
               classId={m.classId}
               active={m.classId === activeClassId}
               onSwitch={() => onSwitch(m.classId)}
+              onLogout={() => onLogoutClass(m.classId)}
             />
           ))}
         </ul>
 
-        <p className="mt-3 truncate text-center text-xs font-semibold text-slate-500">{displayName}</p>
-        <button type="button" onClick={onLogout} className="mt-1 rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-rose-600">
-          התנתקות
+        <button
+          type="button"
+          onClick={onAdd}
+          className="mt-3 rounded-xl bg-brand-600 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
+        >
+          + הוספת כיתה
         </button>
+        {memberships.length > 1 && (
+          <button type="button" onClick={onLogoutAll} className="mt-2 text-xs font-bold text-rose-600">
+            התנתקות מכל הכיתות
+          </button>
+        )}
       </aside>
       <button type="button" aria-label="סגירה" onClick={onClose} className="h-full flex-1 bg-slate-900/50" />
     </div>

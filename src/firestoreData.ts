@@ -5,13 +5,11 @@ import {
   deleteDoc,
   deleteField,
   doc,
-  getDoc,
   getDocs,
   increment,
   onSnapshot,
   orderBy,
   query,
-  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -21,7 +19,7 @@ import {
 import { db, ensureSignedIn } from './firebase'
 import type { DestinationTag } from './classify'
 import type { AnnouncementMeta, AssignmentMeta, EventMeta } from './classify'
-import type { AnnouncementCard, AssignmentCard, ChatMessage, EventCard, Photo, Role } from './data'
+import type { AnnouncementCard, AssignmentCard, ChatMessage, EventCard, Photo } from './data'
 import { toISO, weekdayName } from './dateUtils'
 
 // Every collection here lives under a specific class - classId is threaded
@@ -204,130 +202,43 @@ export function useRoster(classId: string | undefined): string[] {
   return names
 }
 
-// --- Users (admin only) ---
-//
-// One doc per person at users/{phone}: the phone is the id (so it is unique by
-// construction), and it carries the single login code plus every class that
-// person belongs to with their role there. Only the admin can read the whole
-// collection or write to it - see firestore.rules and UserManagerModal.
-
-export interface UserEntry {
+export interface AccessEntry {
   phone: string
-  displayName: string
   code: string
-  classes: Record<string, Role>
-  admin: boolean
+  role: 'teacher' | 'parent'
+  displayName: string
 }
 
-function userDoc(phone: string) {
-  return doc(db!, 'users', phone)
-}
-
-export function userFromData(phone: string, data: DocumentData): UserEntry {
-  return {
-    phone,
-    displayName: data.displayName ?? '',
-    code: data.code ?? '',
-    classes: (data.classes ?? {}) as Record<string, Role>,
-    admin: data.admin === true,
-  }
-}
-
-export function useUsersList(): UserEntry[] {
-  const [items, setItems] = useState<UserEntry[]>([])
+// The teacher-managed allow-list this class's login screen checks against -
+// see src/auth/session.ts for how a phone+code pair turns into a session.
+export function useAccessList(classId: string | undefined): AccessEntry[] {
+  const [items, setItems] = useState<AccessEntry[]>([])
   useEffect(() => {
-    if (!db) return
-    return onSnapshot(
-      collection(db, 'users'),
-      (snap) => setItems(snap.docs.map((d) => userFromData(d.id, d.data())).sort((a, b) => a.displayName.localeCompare(b.displayName, 'he'))),
-      () => setItems([]),
-    )
-  }, [])
+    if (!db || !classId) return
+    return onSnapshot(classCollection(classId, 'access'), (snap) => {
+      setItems(
+        snap.docs.map((d) => {
+          const data = d.data()
+          return { phone: d.id, code: data.code, role: data.role, displayName: data.displayName }
+        }),
+      )
+    })
+  }, [classId])
   return items
 }
 
-// Never overwrites: the phone is the unique key, so adding one that already
-// exists is refused instead of silently replacing someone's code and classes.
-export async function createUserDoc(entry: Omit<UserEntry, 'admin'>): Promise<'ok' | 'exists'> {
+export async function setAccessDoc(classId: string, entry: AccessEntry): Promise<void> {
   await ensureSignedIn()
-  return runTransaction(db!, async (tx) => {
-    const ref = userDoc(entry.phone)
-    if ((await tx.get(ref)).exists()) return 'exists' as const
-    tx.set(ref, { displayName: entry.displayName, code: entry.code, classes: entry.classes })
-    return 'ok' as const
+  await setDoc(classDoc(classId, 'access', entry.phone), {
+    code: entry.code,
+    role: entry.role,
+    displayName: entry.displayName,
   })
 }
 
-// updateDoc (not setDoc) so the admin flag on the one admin's own doc is left
-// alone, and `classes` is replaced as a whole so removed classes really go.
-export async function updateUserDoc(entry: Omit<UserEntry, 'admin'>): Promise<void> {
+export async function deleteAccessDoc(classId: string, phone: string): Promise<void> {
   await ensureSignedIn()
-  await updateDoc(userDoc(entry.phone), { displayName: entry.displayName, code: entry.code, classes: entry.classes })
-}
-
-// Someone removed from a class must also stop being a (stale) push recipient
-// and "online" there.
-export async function clearClassFootprint(classId: string, phone: string): Promise<void> {
-  await Promise.all([
-    deleteDoc(classDoc(classId, 'pushTokens', phone)).catch(() => {}),
-    deleteDoc(classDoc(classId, 'presence', phone)).catch(() => {}),
-  ])
-}
-
-export async function deleteUserDoc(entry: UserEntry): Promise<void> {
-  await ensureSignedIn()
-  await deleteDoc(userDoc(entry.phone))
-  await Promise.all(Object.keys(entry.classes).map((classId) => clearClassFootprint(classId, entry.phone)))
-}
-
-export interface LegacyImportReport {
-  created: number
-  merged: number
-  conflicts: string[]
-  skipped: string[]
-}
-
-// One-time move from the old per-class access lists (classes/{id}/access) to
-// users/. People who appear in several classes become one user with several
-// classes; if they had different codes per class the first class's code wins
-// and the clash is reported so the admin can tell them. Existing users are
-// never overwritten - only given the classes they were missing.
-export async function importLegacyAccess(classIds: string[], isValidPhone: (phone: string) => boolean): Promise<LegacyImportReport> {
-  await ensureSignedIn()
-  const report: LegacyImportReport = { created: 0, merged: 0, conflicts: [], skipped: [] }
-  const found = new Map<string, { displayName: string; code: string; classes: Record<string, Role> }>()
-
-  for (const classId of classIds) {
-    const snap = await getDocs(classCollection(classId, 'access'))
-    for (const d of snap.docs) {
-      const data = d.data()
-      const role: Role = data.role === 'teacher' ? 'teacher' : 'parent'
-      const prev = found.get(d.id)
-      if (!prev) {
-        found.set(d.id, { displayName: data.displayName ?? d.id, code: String(data.code ?? ''), classes: { [classId]: role } })
-      } else {
-        prev.classes[classId] = role
-        if (String(data.code ?? '') !== prev.code) report.conflicts.push(`${prev.displayName} (${d.id})`)
-      }
-    }
-  }
-
-  for (const [phone, p] of found) {
-    if (!isValidPhone(phone) || p.code.length < 4 || p.code.length > 12) {
-      report.skipped.push(`${p.displayName} (${phone})`)
-      continue
-    }
-    const existing = await getDoc(userDoc(phone))
-    if (existing.exists()) {
-      const classes = { ...p.classes, ...((existing.data().classes ?? {}) as Record<string, Role>) }
-      await updateDoc(userDoc(phone), { classes })
-      report.merged += 1
-    } else {
-      await setDoc(userDoc(phone), { displayName: p.displayName, code: p.code, classes: p.classes })
-      report.created += 1
-    }
-  }
-  return report
+  await deleteDoc(classDoc(classId, 'access', phone))
 }
 
 // --- Writes ---

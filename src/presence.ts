@@ -25,9 +25,7 @@ export function usePresenceHeartbeat(classId: string | undefined, phone: string 
     const beat = () => {
       void ensureSignedIn().then(() => {
         if (cancelled) return
-        // A refused write (e.g. the admin just removed this person) is not
-        // worth an unhandled-rejection error - they're about to be logged out.
-        void setDoc(presenceDoc(classId, phone), { displayName, lastActive: serverTimestamp() }).catch(() => {})
+        void setDoc(presenceDoc(classId, phone), { displayName, lastActive: serverTimestamp() })
       })
     }
 
@@ -61,40 +59,6 @@ export function usePresenceList(classId: string | undefined): Record<string, num
     })
   }, [classId])
   return map
-}
-
-// phone -> most recent heartbeat across the given classes (the admin's view of
-// when each person was last around anywhere).
-export function useAllPresence(classIds: string[]): Record<string, number> {
-  const [byClass, setByClass] = useState<Record<string, Record<string, number>>>({})
-  const key = classIds.join(',')
-  useEffect(() => {
-    if (!db) return
-    const unsubs = key
-      .split(',')
-      .filter(Boolean)
-      .map((classId) =>
-        onSnapshot(
-          collection(db!, 'classes', classId, 'presence'),
-          (snap) => {
-            const next: Record<string, number> = {}
-            for (const d of snap.docs) {
-              const ts = d.data().lastActive
-              next[d.id] = typeof ts?.toMillis === 'function' ? ts.toMillis() : 0
-            }
-            setByClass((prev) => ({ ...prev, [classId]: next }))
-          },
-          () => {},
-        ),
-      )
-    return () => unsubs.forEach((u) => u())
-  }, [key])
-
-  const merged: Record<string, number> = {}
-  for (const classId of key.split(',').filter(Boolean)) {
-    for (const [phone, ts] of Object.entries(byClass[classId] ?? {})) merged[phone] = Math.max(merged[phone] ?? 0, ts)
-  }
-  return merged
 }
 
 export function isOnline(lastActive: number | undefined, now: number = Date.now()): boolean {

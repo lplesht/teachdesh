@@ -1,15 +1,12 @@
 rules_version = '2';
 
-// Real access control. Every visitor signs in anonymously (src/firebase.ts),
-// then logs in by creating sessions/{uid} = {phone, code}; the write itself is
-// the code check (it only succeeds if `code` matches users/{phone}.code).
-//
-// One person = one phone = one code = one users/{phone} doc, which also lists
-// every class they belong to and their role in each:
-//   users/{phone} = { displayName, code, classes: { g4: 'parent', b1: 'teacher' } }
-// Roles are always read from there, never from the client. Only the single
-// admin (the one users doc created by hand in the console with admin: true)
-// can create/edit/delete users - teachers manage nothing but their class.
+// Real access control: every visitor signs in anonymously (src/firebase.ts),
+// then joins each class they belong to by creating a membership doc at
+// sessions/{uid}/classes/{classId} through a successful phone+code login
+// (src/auth/session.ts). A membership only stores {phone} - role always
+// comes from following it to classes/{classId}/access/{phone}, never from
+// the client, so nobody can claim their own role. One device can hold
+// several memberships at once (a parent with children in different classes).
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -17,83 +14,39 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function sessionPath() {
-      return /databases/$(database)/documents/sessions/$(request.auth.uid);
-    }
-
-    function userPath(phone) {
-      return /databases/$(database)/documents/users/$(phone);
-    }
-
-    // Logged in = has a session whose phone+code still match that user's
-    // current code, so changing/deleting a user kicks their old sessions out.
-    function loggedIn() {
-      return signedIn()
-        && exists(sessionPath())
-        && exists(userPath(get(sessionPath()).data.phone))
-        && get(userPath(get(sessionPath()).data.phone)).data.code == get(sessionPath()).data.code;
-    }
-
-    function myPhone() {
-      return get(sessionPath()).data.phone;
-    }
-
-    function me() {
-      return get(userPath(myPhone())).data;
-    }
-
-    function isAdmin() {
-      return loggedIn() && me().get('admin', false) == true;
+    function membershipPath(classId) {
+      return /databases/$(database)/documents/sessions/$(request.auth.uid)/classes/$(classId);
     }
 
     function isMember(classId) {
-      return loggedIn() && me().classes.get(classId, null) != null;
+      return signedIn() && exists(membershipPath(classId));
+    }
+
+    function myPhone(classId) {
+      return get(membershipPath(classId)).data.phone;
+    }
+
+    function myAccessDoc(classId) {
+      return get(/databases/$(database)/documents/classes/$(classId)/access/$(myPhone(classId))).data;
     }
 
     function isTeacher(classId) {
-      return loggedIn() && me().classes.get(classId, null) == 'teacher';
+      return isMember(classId) && myAccessDoc(classId).role == 'teacher';
     }
 
-    // Israeli mobile (05X-XXXXXXX), landline (0[2-4,8,9]-XXXXXXX) or VoIP (07X-XXXXXXX).
-    function validPhone(phone) {
-      return phone.matches('^(05[0-9]{8}|07[0-9]{8}|0[23489][0-9]{7})$');
-    }
-
-    function validUser(d) {
-      return d.keys().hasOnly(['displayName', 'code', 'classes', 'admin'])
-        && d.keys().hasAll(['displayName', 'code', 'classes'])
-        && d.displayName is string && d.displayName.size() > 0 && d.displayName.size() <= 60
-        && d.code is string && d.code.size() >= 4 && d.code.size() <= 12
-        && d.classes is map
-        && d.classes.values().hasOnly(['parent', 'teacher']);
-    }
-
-    match /sessions/{uid} {
+    match /sessions/{uid}/classes/{classId} {
       allow read, delete: if signedIn() && request.auth.uid == uid;
+      // The write itself is the code check: it succeeds only if `code`
+      // matches the stored access doc's code for that class+phone.
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['phone', 'code'])
-        && exists(userPath(request.resource.data.phone))
-        && get(userPath(request.resource.data.phone)).data.code == request.resource.data.code;
+        && get(/databases/$(database)/documents/classes/$(classId)/access/$(request.resource.data.phone)).data.code == request.resource.data.code;
     }
 
-    match /users/{phone} {
-      // Everyone may read their own doc (role per class, display name); the
-      // admin reads/lists everyone's.
-      allow get: if loggedIn() && (myPhone() == phone || isAdmin());
-      allow list: if isAdmin();
-      // The admin flag can only be set by hand in the console - this rule
-      // never lets it be created, changed or removed from the app.
-      allow create: if isAdmin() && validPhone(phone) && validUser(request.resource.data)
-        && request.resource.data.get('admin', false) == false;
-      allow update: if isAdmin() && validUser(request.resource.data)
-        && request.resource.data.get('admin', false) == resource.data.get('admin', false);
-      allow delete: if isAdmin() && resource.data.get('admin', false) == false;
-    }
-
-    // Legacy per-class login lists, kept only so the admin can import them
-    // once into users/ (see UserManagerModal). Nothing authorizes from here.
     match /classes/{classId}/access/{phone} {
-      allow read, delete: if isAdmin();
+      // A parent may read only her own entry (to know her own role/display
+      // name); a teacher may read/list/write the whole class's list.
+      allow read: if isMember(classId) && (myPhone(classId) == phone || myAccessDoc(classId).role == 'teacher');
+      allow write: if isTeacher(classId);
     }
 
     match /classes/{classId}/messages/{messageId} {
@@ -107,27 +60,23 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
             // Messages sent before this feature existed have no likedBy map
             // yet - treat that as an empty one rather than erroring the diff.
-            && request.resource.data.likedBy.diff('likedBy' in resource.data ? resource.data.likedBy : {}).affectedKeys().hasOnly([myPhone()]));
+            && request.resource.data.likedBy.diff('likedBy' in resource.data ? resource.data.likedBy : {}).affectedKeys().hasOnly([myPhone(classId)]));
     }
 
     match /classes/{classId}/presence/{phone} {
       // Simple online/last-seen heartbeat (src/presence.ts) - any class
       // member can see who else is around, but only touch their own entry.
-      // The admin can see and clean up everyone's.
-      allow read: if isMember(classId) || isAdmin();
-      allow write: if isMember(classId) && myPhone() == phone;
-      allow delete: if isAdmin();
+      allow read: if isMember(classId);
+      allow write: if isMember(classId) && myPhone(classId) == phone;
     }
 
     match /classes/{classId}/pushTokens/{phone} {
       // Each viewer registers their own push token (src/push.ts); the
       // notifyOnNewMessage Cloud Function reads these via the Admin SDK,
       // which bypasses rules entirely - only the teacher needs client read
-      // access, and only to show who has notifications on. The admin can
-      // delete a token when removing someone from a class.
+      // access, and only to show who has notifications on.
       allow read: if isTeacher(classId);
-      allow write: if isMember(classId) && myPhone() == phone;
-      allow delete: if isAdmin();
+      allow write: if isMember(classId) && myPhone(classId) == phone;
     }
 
     match /classes/{classId}/events/{eventId} {
@@ -141,12 +90,12 @@ service cloud.firestore {
     // Everything else under a class (assignments, announcements, photos,
     // meta/roster) - members read, only the teacher writes. Overlapping
     // match blocks are OR-ed together, so this broad rule must explicitly
-    // exclude the collections that have their own stricter rules above
+    // exclude the collections that have their own stricter read rule above
     // (access holds everyone's login codes; pushTokens are device tokens) -
-    // otherwise it would quietly re-open them to every member/teacher.
+    // otherwise it would quietly re-open them to every member.
     match /classes/{classId}/{collection}/{docId} {
       allow read: if isMember(classId) && !(collection in ['access', 'pushTokens']);
-      allow write: if isTeacher(classId) && !(collection in ['access', 'pushTokens']);
+      allow write: if isTeacher(classId);
     }
   }
 }

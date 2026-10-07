@@ -5,7 +5,6 @@ import { KeyIcon, MenuIcon, RosterIcon } from './icons'
 interface Props {
   classInfo: ClassInfo
   role: Role
-  isAdmin: boolean
   displayName: string
   studentsCount: number
   onOpenRoster: () => void
@@ -16,7 +15,6 @@ interface Props {
 export default function Header({
   classInfo,
   role,
-  isAdmin,
   displayName,
   studentsCount,
   onOpenRoster,
@@ -46,28 +44,24 @@ export default function Header({
           </div>
         </div>
 
-        {(isAdmin || role === 'teacher') && (
+        {role === 'teacher' && (
           <div className="flex shrink-0 items-center gap-1.5">
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={onOpenAccessManager}
-                className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
-                aria-label="ניהול משתמשים"
-              >
-                <KeyIcon className="h-[18px] w-[18px]" />
-              </button>
-            )}
-            {role === 'teacher' && (
-              <button
-                type="button"
-                onClick={onOpenRoster}
-                className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
-                aria-label="עדכון דף קשר"
-              >
-                <RosterIcon className="h-[18px] w-[18px]" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onOpenAccessManager}
+              className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+              aria-label="ניהול הרשאות"
+            >
+              <KeyIcon className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenRoster}
+              className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+              aria-label="עדכון דף קשר"
+            >
+              <RosterIcon className="h-[18px] w-[18px]" />
+            </button>
           </div>
         )}
       </div>

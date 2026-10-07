@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import ChatScreen from './components/ChatScreen'
@@ -8,13 +8,20 @@ import AnnouncementsTab from './components/AnnouncementsTab'
 import GalleryTab from './components/GalleryTab'
 import RosterModal from './components/RosterModal'
 import LoginScreen from './components/LoginScreen'
-import UserManagerModal, { UserManager } from './components/UserManagerModal'
+import AccessManagerModal from './components/AccessManagerModal'
 import InstallPrompt from './components/InstallPrompt'
 import PushPrompt from './components/PushPrompt'
 import { classifyMessage, destinationLabel } from './classify'
 import { classifyWithLLM } from './llmClassify'
 import { firebaseReady } from './firebase'
-import { logout, membershipsOf, useActiveMembership, useMyUser, useSession, type Membership } from './auth/session'
+import {
+  logout,
+  logoutAll,
+  useActiveMembership,
+  useMemberships,
+  useMyAccess,
+  type Membership,
+} from './auth/session'
 import ClassDrawer from './components/ClassDrawer'
 import { setChatSeen } from './chatSeen'
 import { CLASSES } from './classes'
@@ -83,63 +90,49 @@ function LoadingScreen() {
   )
 }
 
-function LogoutButton() {
-  return (
-    <button type="button" onClick={() => void logout()} className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-rose-600">
-      התנתקות
-    </button>
-  )
-}
-
-// Logged in, but not (yet) assigned to any class. The admin lands on the user
-// manager - it's the only thing they need to do their job - and anyone else is
-// told to ask the admin.
-function NoClassScreen({ displayName, isAdmin }: { displayName: string; isAdmin: boolean }) {
-  return (
-    <div className="grid min-h-dvh place-items-center bg-slate-100 p-6" dir="rtl">
-      <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
-        {isAdmin ? (
-          <UserManager />
-        ) : (
-          <>
-            <h1 className="mb-1 text-lg font-extrabold text-slate-900">שלום {displayName}</h1>
-            <p className="text-sm text-slate-500">עדיין לא שויכת לאף כיתה. יש לפנות למנהל המערכת כדי שישייך אותך.</p>
-          </>
-        )}
-        <LogoutButton />
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
-  const session = useSession()
-  const me = useMyUser(session)
-  const memberships = useMemo(() => (me && me !== 'loading' ? membershipsOf(me) : []), [me])
+  const memberships = useMemberships()
   const [active, setActive] = useActiveMembership(memberships)
+  const access = useMyAccess(active)
+  const [addingClass, setAddingClass] = useState(false)
 
-  // A session can outlive its user: the admin may have deleted them or changed
-  // their code (the rules then refuse the read). Drop the stale session so
-  // they land on the login screen instead of an app that no longer loads.
+  // A membership can outlive its access doc (e.g. a teacher removed that
+  // entry) - the membership write rule only checks the code at *write*
+  // time, so a lingering one would otherwise keep a removed person in.
+  // Clear just that class automatically so they land on the login screen
+  // (or their other classes).
   useEffect(() => {
-    if (session !== 'loading' && session !== null && me === null) void logout()
-  }, [session, me])
+    if (active !== 'loading' && active !== null && access === null) void logout(active.classId)
+  }, [active, access])
 
   if (!firebaseReady) return <FirebaseSetupNotice />
-  if (session === 'loading' || me === 'loading') return <LoadingScreen />
-  if (session === null || me === null) return <LoginScreen />
-  if (active === null) return <NoClassScreen displayName={me.displayName} isAdmin={me.admin} />
+  if (memberships === 'loading' || active === 'loading' || access === 'loading') return <LoadingScreen />
+  if (active === null || access === null) return <LoginScreen />
+
+  if (addingClass) {
+    return (
+      <LoginScreen
+        defaultPhone={active.phone}
+        joinedClassIds={memberships.map((m) => m.classId)}
+        onCancel={() => setAddingClass(false)}
+        onJoined={(classId) => {
+          setActive(classId)
+          setAddingClass(false)
+        }}
+      />
+    )
+  }
 
   return (
     <SignedInApp
       key={active.classId}
       classId={active.classId}
-      phone={me.phone}
-      role={active.role}
-      isAdmin={me.admin}
-      displayName={me.displayName}
+      phone={active.phone}
+      role={access.role}
+      displayName={access.displayName}
       memberships={memberships}
       onSwitchClass={setActive}
+      onAddClass={() => setAddingClass(true)}
     />
   )
 }
@@ -148,18 +141,18 @@ function SignedInApp({
   classId,
   phone,
   role,
-  isAdmin,
   displayName,
   memberships,
   onSwitchClass,
+  onAddClass,
 }: {
   classId: string
   phone: string
   role: Role
-  isAdmin: boolean
   displayName: string
   memberships: Membership[]
   onSwitchClass: (classId: string) => void
+  onAddClass: () => void
 }) {
   const [tab, setTab] = useState<TabId>('home')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -317,7 +310,6 @@ function SignedInApp({
         <Header
           classInfo={classInfo}
           role={role}
-          isAdmin={isAdmin}
           displayName={displayName}
           studentsCount={students.length}
           onOpenRoster={() => setRosterOpen(true)}
@@ -390,8 +382,12 @@ function SignedInApp({
             setDrawerOpen(false)
             if (id !== classId) onSwitchClass(id)
           }}
-          displayName={displayName}
-          onLogout={() => void logout()}
+          onAdd={() => {
+            setDrawerOpen(false)
+            onAddClass()
+          }}
+          onLogoutClass={(id) => void logout(id)}
+          onLogoutAll={() => void logoutAll(memberships.map((m) => m.classId))}
         />
       </div>
 
@@ -402,7 +398,7 @@ function SignedInApp({
           onUpdate={(names) => void updateRosterDoc(classId, names)}
         />
       )}
-      {accessManagerOpen && <UserManagerModal onClose={() => setAccessManagerOpen(false)} />}
+      {accessManagerOpen && <AccessManagerModal classId={classId} onClose={() => setAccessManagerOpen(false)} />}
     </div>
   )
 }
