@@ -24,12 +24,3 @@ export const CLASSES: Record<string, ClassInfo> = {
     teacherInitials: 'תש',
   },
 }
-
-// The login screen first asks for a school, then lists that school's classes.
-export function listSchools(): string[] {
-  return [...new Set(Object.values(CLASSES).map((c) => c.schoolName))]
-}
-
-export function classesOfSchool(schoolName: string): ClassInfo[] {
-  return Object.values(CLASSES).filter((c) => c.schoolName === schoolName)
-}

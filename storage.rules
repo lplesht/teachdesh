@@ -6,16 +6,18 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function userData() {
+      return firestore.get(/databases/(default)/documents/users/$(firestore.get(/databases/(default)/documents/sessions/$(request.auth.uid)).data.phone)).data;
+    }
+
     function isMember(classId) {
       return request.auth != null
         && firestore.exists(/databases/(default)/documents/sessions/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/sessions/$(request.auth.uid)).data.classId == classId;
+        && userData().classes.get(classId, null) != null;
     }
 
     function isTeacher(classId) {
-      let s = firestore.get(/databases/(default)/documents/sessions/$(request.auth.uid)).data;
-      return isMember(classId)
-        && firestore.get(/databases/(default)/documents/classes/$(classId)/access/$(s.phone)).data.role == 'teacher';
+      return isMember(classId) && userData().classes.get(classId, null) == 'teacher';
     }
 
     match /classes/{classId}/{allPaths=**} {

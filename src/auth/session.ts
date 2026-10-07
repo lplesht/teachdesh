@@ -1,82 +1,154 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore'
+import { deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { auth, db, ensureSignedIn } from '../firebase'
-import type { AccessEntry } from '../firestoreData'
+import { INVALID_PHONE_MESSAGE, isValidIsraeliPhone, normalizePhone } from '../phone'
+import { userFromData, type UserEntry } from '../firestoreData'
+import type { Role } from '../data'
 
-// One class this device is logged in to. Holds only { classId, phone } -
-// never role/displayName, which always come from the matching access doc
-// (see useMyAccess below) so the client can never claim its own role.
+// One class the logged-in person belongs to, with their role in it. Always
+// derived from their users/{phone} doc (see useMyUser) - never stored on the
+// device, so the client can never claim its own role or classes.
 export interface Membership {
   classId: string
+  role: Role
+}
+
+export interface Session {
   phone: string
+  // Kept so the client can notice, on its own, that the admin has since
+  // changed this person's code (the rules enforce it server-side too).
+  code: string
 }
 
-export function normalizePhone(raw: string): string {
-  return raw.replace(/\D/g, '')
+function sessionDoc(uid: string) {
+  return doc(db!, 'sessions', uid)
 }
 
-function membershipsCollection(uid: string) {
-  return collection(db!, 'sessions', uid, 'classes')
-}
-
-function membershipDoc(uid: string, classId: string) {
-  return doc(db!, 'sessions', uid, 'classes', classId)
-}
-
-// 'loading' until anonymous auth + the first Firestore read resolve;
-// afterwards the list of classes this device is logged in to (empty = not
-// logged in anywhere).
-export function useMemberships(): 'loading' | Membership[] {
-  const [memberships, setMemberships] = useState<'loading' | Membership[]>('loading')
+// 'loading' until anonymous auth + the first Firestore read resolve; then
+// null (not logged in) or the phone this device logged in with.
+export function useSession(): 'loading' | Session | null {
+  const [session, setSession] = useState<'loading' | Session | null>('loading')
 
   useEffect(() => {
     if (!db || !auth) {
-      setMemberships([])
+      setSession(null)
       return
     }
     let unsub: (() => void) | undefined
     void ensureSignedIn().then(() => {
       const uid = auth!.currentUser?.uid
       if (!uid) {
-        setMemberships([])
+        setSession(null)
         return
       }
       unsub = onSnapshot(
-        membershipsCollection(uid),
-        // Firestore applies writes to the local cache optimistically,
-        // before the server has accepted or rejected them - so a login
-        // with a wrong code briefly shows up here as if it had succeeded.
-        // Skipping docs with pending writes waits for the server-confirmed
-        // version, so a rejected login never flashes a false "logged in"
-        // (which would unmount the login screen and lose its error).
-        // includeMetadataChanges is required: the pending->confirmed
-        // transition has identical data, so without it the confirmation
-        // would never fire this listener at all.
+        sessionDoc(uid),
+        // Firestore applies writes to the local cache optimistically, before
+        // the server has accepted or rejected them - so a login with a wrong
+        // code briefly shows up here as if it had succeeded. Skipping a
+        // doc with pending writes waits for the server-confirmed version, so
+        // a rejected login never flashes a false "logged in" (which would
+        // unmount the login screen and lose its error). includeMetadataChanges
+        // is required: the pending->confirmed transition has identical data,
+        // so without it the confirmation would never fire this listener.
         { includeMetadataChanges: true },
         (snap) => {
-          setMemberships(
-            snap.docs
-              .filter((d) => !d.metadata.hasPendingWrites)
-              .map((d) => ({ classId: d.id, phone: d.data().phone as string }))
-              .sort((x, y) => x.classId.localeCompare(y.classId)),
-          )
+          if (snap.exists() && snap.metadata.hasPendingWrites) return
+          setSession(snap.exists() ? { phone: snap.data().phone as string, code: snap.data().code as string } : null)
         },
       )
     })
     return () => unsub?.()
   }, [])
 
-  return memberships
+  return session
+}
+
+const MAX_USER_RETRIES = 8
+const USER_RETRY_DELAY_MS = 400
+
+// The logged-in person's own users/{phone} doc: name, role per class, admin
+// flag. This is the *only* source of truth for those in the UI, same as the
+// security rules use server-side.
+//
+// null means "confirmed not valid any more" - the user was deleted or their
+// code changed (the rules then refuse the read, and the client double-checks
+// the code itself), so App logs this device out.
+// 'loading' is reported until the lookup has settled *for the current phone*,
+// so a stale value from before logging in can't be mistaken for an answer.
+export function useMyUser(session: 'loading' | Session | null): UserEntry | 'loading' | null {
+  const [state, setState] = useState<{ key: string; user: UserEntry | null } | null>(null)
+  const [retryTick, setRetryTick] = useState(0)
+  const retries = useRef(0)
+  const phone = session === 'loading' || session === null ? null : session.phone
+  const sessionCode = session === 'loading' || session === null ? null : session.code
+  // Identifies *this* login, so a result left over from an earlier login of
+  // the same phone (before the code changed) can't pass for the current one.
+  const loginKey = phone && sessionCode ? `${phone}:${sessionCode}` : null
+
+  // A fresh login starts with a fresh retry budget.
+  useEffect(() => {
+    retries.current = 0
+  }, [phone, sessionCode])
+
+  useEffect(() => {
+    if (!db || !phone) return
+    let cancelled = false
+    const unsub = onSnapshot(
+      doc(db, 'users', phone),
+      (snap) => {
+        // A cached copy can only vouch for a login, never end one: it may be
+        // from before the code changed (or the user was removed), and the
+        // server's answer is still on its way.
+        if (snap.metadata.fromCache && (!snap.exists() || snap.data().code !== sessionCode)) return
+        // A cached copy says nothing about whether the server still accepts
+        // this read, so only a server-confirmed snapshot clears the retries.
+        if (!snap.metadata.fromCache) retries.current = 0
+        setState({ key: `${phone}:${sessionCode}`, user: snap.exists() ? userFromData(phone, snap.data()) : null })
+      },
+      () => {
+        // Right after logging in, the read rule can very occasionally be
+        // evaluated against a not-yet-visible session write and refuse a
+        // valid login. Retry a few times before concluding it's really gone.
+        if (cancelled) return
+        if (retries.current < MAX_USER_RETRIES) {
+          retries.current += 1
+          setTimeout(() => {
+            if (!cancelled) setRetryTick((t) => t + 1)
+          }, USER_RETRY_DELAY_MS)
+        } else {
+          setState({ key: `${phone}:${sessionCode}`, user: null })
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [phone, sessionCode, retryTick])
+
+  if (session === 'loading') return 'loading'
+  if (session === null) return null
+  if (state?.key !== loginKey) return 'loading'
+  // The code this device logged in with is no longer the user's code.
+  if (state.user && state.user.code !== sessionCode) return null
+  return state.user
+}
+
+export function membershipsOf(user: UserEntry): Membership[] {
+  return Object.entries(user.classes)
+    .map(([classId, role]) => ({ classId, role }))
+    .sort((a, b) => a.classId.localeCompare(b.classId))
 }
 
 const ACTIVE_CLASS_KEY = 'teachdesh_active_class'
 
-// Which of the joined classes is currently open. The choice is remembered
-// per device; if it points at a class that is no longer joined (or was never
-// chosen) the first joined class is used instead.
+// Which of the person's classes is currently open. The choice is remembered
+// per device; if it points at a class they no longer belong to (or was never
+// chosen) the first one is used instead.
 export function useActiveMembership(
-  memberships: 'loading' | Membership[],
-): ['loading' | Membership | null, (classId: string) => void] {
+  memberships: Membership[],
+): [Membership | null, (classId: string) => void] {
   const [desired, setDesired] = useState<string | null>(() => {
     try {
       return localStorage.getItem(ACTIVE_CLASS_KEY)
@@ -94,112 +166,38 @@ export function useActiveMembership(
     }
   }
 
-  if (memberships === 'loading') return ['loading', setActive]
   return [memberships.find((m) => m.classId === desired) ?? memberships[0] ?? null, setActive]
-}
-
-function membershipKeyOf(membership: Membership | 'loading' | null): string | null {
-  return membership === 'loading' || membership === null ? null : `${membership.classId}:${membership.phone}`
-}
-
-// Looks up role/displayName for the active membership by reading its matching
-// access doc - this is the *only* source of truth for role in the UI, same
-// as the security rules use server-side.
-//
-// Reports 'loading' (via the ref check below) until the lookup has actually
-// settled *for the current membership's identity* - not just "whatever `access`
-// happened to hold before `session` changed". Without that guard, right
-// after logging in there's one render where `session` is already the new,
-// real session but `access` still holds its previous value (null, from
-// being logged out) because this hook's own effect hasn't run yet - a
-// momentary false "access confirmed absent" that looks identical to a
-// genuinely removed access doc to anything reading both values together
-// (e.g. a stale-session cleanup effect), causing it to immediately delete
-// the session it just created.
-const MAX_ACCESS_RETRIES = 8
-const ACCESS_RETRY_DELAY_MS = 400
-
-export function useMyAccess(session: Membership | 'loading' | null): AccessEntry | 'loading' | null {
-  const [access, setAccess] = useState<AccessEntry | 'loading' | null>('loading')
-  const resolvedForKey = useRef<string | null>(null)
-  const sessionKey = membershipKeyOf(session)
-  const [retryTick, setRetryTick] = useState(0)
-
-  useEffect(() => {
-    if (session === 'loading') {
-      setAccess('loading')
-      resolvedForKey.current = null
-      return
-    }
-    if (!db || !session) {
-      setAccess(null)
-      resolvedForKey.current = null
-      return
-    }
-
-    let cancelled = false
-    let attempt = retryTick
-    const unsub = onSnapshot(
-      doc(db, 'classes', session.classId, 'access', session.phone),
-      (snap) => {
-        const data = snap.data()
-        resolvedForKey.current = sessionKey
-        setAccess(data ? { phone: session.phone, code: data.code, role: data.role, displayName: data.displayName } : null)
-      },
-      () => {
-        // The access doc's read rule depends on sessions/{uid} that was
-        // just created a moment ago - very occasionally the rule engine
-        // evaluates against a not-yet-visible write and rejects this read
-        // even though the session is genuinely valid. Retry a few times
-        // (rather than dying silently) before giving up.
-        if (cancelled || attempt >= MAX_ACCESS_RETRIES) return
-        attempt += 1
-        setTimeout(() => {
-          if (!cancelled) setRetryTick((t) => t + 1)
-        }, ACCESS_RETRY_DELAY_MS)
-      },
-    )
-    return () => {
-      cancelled = true
-      unsub()
-    }
-  }, [session, retryTick])
-
-  if (resolvedForKey.current !== sessionKey) return 'loading'
-  return access
 }
 
 function isPermissionDenied(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === 'permission-denied'
 }
 
-// Creates this class's membership doc; the security rule itself checks
-// `code` against the stored access doc for (classId, phone) and rejects the
-// write if it doesn't match, so a wrong code never joins a class - no
-// separate server-side check needed.
-export async function login(classId: string, phoneRaw: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
+// Logs this device in: the security rule itself checks `code` against the
+// stored users/{phone}.code and rejects the write if it doesn't match (or the
+// phone doesn't exist), so a wrong login never creates a session - no
+// separate server-side check needed. Which classes the person lands in comes
+// from their users doc, not from anything chosen here.
+export async function login(phoneRaw: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!db || !auth) return { ok: false, error: 'האפליקציה לא מחוברת למסד נתונים' }
 
   const phone = normalizePhone(phoneRaw)
-  if (!phone || !code.trim()) return { ok: false, error: 'צריך להזין מספר טלפון וקוד' }
+  if (!isValidIsraeliPhone(phone)) return { ok: false, error: INVALID_PHONE_MESSAGE }
+  if (!code.trim()) return { ok: false, error: 'צריך להזין מספר טלפון וקוד' }
 
   await ensureSignedIn()
   const uid = auth.currentUser?.uid
   if (!uid) return { ok: false, error: 'ההתחברות נכשלה, נסי לרענן את הדף' }
 
   try {
-    await setDoc(membershipDoc(uid, classId), { phone, code: code.trim() })
+    await setDoc(sessionDoc(uid), { phone, code: code.trim() })
     return { ok: true }
   } catch (err) {
     return { ok: false, error: isPermissionDenied(err) ? 'מספר טלפון או קוד שגויים' : 'שגיאה בהתחברות, נסי שוב' }
   }
 }
 
-export async function logout(classId: string): Promise<void> {
+export async function logout(): Promise<void> {
   if (!db || !auth?.currentUser) return
-  await deleteDoc(membershipDoc(auth.currentUser.uid, classId))
-}
-
-export async function logoutAll(classIds: string[]): Promise<void> {
-  await Promise.all(classIds.map((id) => logout(id)))
+  await deleteDoc(sessionDoc(auth.currentUser.uid))
 }
